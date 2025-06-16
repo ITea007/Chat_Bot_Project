@@ -10,17 +10,17 @@ namespace Interactive_Menu
         /// </summary>
         private static string UserName = "";
         /// <summary>
-        /// Последняя введеная пользователем строка
+        /// Доступные пользователю команды. Список доступных комманд.
         /// </summary>
-        private static string? CurrentString;
+        private static readonly List<string> AvailableCommands = ["/echo", "/start", "/help", "/info", "/exit", "/addtask", "/showtasks", "/removetask"];
         /// <summary>
-        /// Доступные пользователю команды. Массив доступных комманд. Команда "/echo" всегда последняя команда в массиве.
+        /// Индекс команды "/echo" в списке доступных команд
         /// </summary>
-        private static readonly string[] AvailableCommands = ["/start", "/help", "/info", "/exit", "/echo"];
+        private static readonly int EchoCommandIndex = 0;
         /// <summary>
-        /// Индекс команды "/echo" в массиве доступных команд
+        /// Список текущих задач
         /// </summary>
-        private static readonly int EchoCommandNumber = AvailableCommands.Length - 1;
+        private static List<string> Tasks = new List<string>();
 
 
         #region CommandsRealization
@@ -46,7 +46,16 @@ namespace Interactive_Menu
         /// </summary>
         static void HelpCommand()
         {
-            Console.WriteLine("Cправка по программе:\r\nКоманда /start: Если пользователь вводит команду /start, программа просит его ввести своё имя. \r\nКоманда /help: Отображает краткую справочную информацию о том, как пользоваться программой.\r\nКоманда /info: Предоставляет информацию о версии программы и дате её создания.\r\nКоманда /echo: Становится доступной после ввода имени. При вводе этой команды с аргументом (например, /echo Hello), программа возвращает введенный текст (в данном примере \"Hello\").\r\nКоманда /exit: Завершить программу.\r\nВводите команды строчными буквами для корректной работы приложения.\r\n");
+            Console.WriteLine("Cправка по программе:\r\nКоманда /start: Если пользователь вводит команду /start, программа просит его ввести своё имя." +
+                "\r\nКоманда /help: Отображает краткую справочную информацию о том, как пользоваться программой." +
+                "\r\nКоманда /info: Предоставляет информацию о версии программы и дате её создания." +
+                "\r\nКоманда /echo: Становится доступной после ввода имени. При вводе этой команды с аргументом (например, /echo Hello), программа возвращает " +
+                "введенный текст (в данном примере \"Hello\")." +
+                "\r\nКоманда /addtask: После ввода команды добавьте описание задачи. После добавления задачи выводится сообщение, что задача добавлена." +
+                "\r\nКоманда /showtasks: При вводе команды /showtasks бот отображает список всех добавленных задач." +
+                "\r\nКоманда /removetask: После ввода команды, отображается список задач с номерами. Введите номер задачи для её удаления." +
+                "\r\nКоманда /exit: Завершить программу." +
+                "\r\nВводите команды строчными буквами для корректной работы приложения.\r\n");
         }
 
         /// <summary>
@@ -54,7 +63,10 @@ namespace Interactive_Menu
         /// </summary>
         static void InfoCommand()
         {
-            Console.WriteLine("Текущая версия программы 1.0.  Дата создания 25-05-2025\r\n");
+            Console.WriteLine(  "*  Текущая версия программы 2.0.  Дата создания 16-06-2025\r\n" +
+                                "   Добавлены команды /addtask, /showtasks, /removetask\r\n" +
+                                "*  Версия программы 1.0.  Дата создания 25-05-2025\r\n" +
+                                "   Реализованы команды /start, /help, /info, /echo, /exit\r\n");
         }
 
         /// <summary>
@@ -71,35 +83,93 @@ namespace Interactive_Menu
         /// лишние пробелы вначале, выводится на консоль. 
         /// </summary>
         /// <param name="inputString">Входящая строка</param>
-        /// <param name="availableCommandsArray">Массив доступных комманд</param>
-        /// <param name="echoCommandNumber">Индекс команды "/echo" в массиве доступных команд</param>
-        static void EchoCommand(string inputString, string[] availableCommandsArray, int echoCommandNumber, string userName)
+        /// <param name="availableCommandsList">Список доступных комманд</param>
+        /// <param name="echoCommandIndex">Индекс команды "/echo" в списке доступных команд</param>
+        static void EchoCommand(string inputString, List<string> availableCommandsList, int echoCommandIndex, string userName)
         {
-            if (!string.IsNullOrEmpty(inputString) && 
-                inputString.StartsWith(availableCommandsArray[echoCommandNumber]) && 
-                !string.IsNullOrEmpty(userName))
+            if (!string.IsNullOrEmpty(inputString) &&
+                !string.IsNullOrEmpty(userName) && 
+                inputString.StartsWith(availableCommandsList[echoCommandIndex]))
             {
-                var subString = inputString.Substring(availableCommandsArray[echoCommandNumber].Length);
+                var subString = inputString.Substring(availableCommandsList[echoCommandIndex].Length);
                 Console.WriteLine(subString.TrimStart());
             }
         }
+        /// <summary>
+        /// Добавление в список текущих задач новой задачи с описанием.
+        /// </summary>
+        /// <param name="tasksList">Список текущих задач</param>
+        static void AddTask(List<string> tasksList)
+        {
+            var taskDescription = "";
+            do
+            {
+                Console.WriteLine("Введите описание задачи");
+                taskDescription = Console.ReadLine();
+            } while (string.IsNullOrEmpty(taskDescription));
+            tasksList.Add(taskDescription);
+            Console.WriteLine($"Добавлена задача # {tasksList.Count}: {tasksList[^1]}");
+        }
+        /// <summary>
+        /// Вывод в консоль списка текущих задач
+        /// </summary>
+        /// <param name="tasksList">Список текущих задач</param>
+        static void ShowTasks(List<string> tasksList)
+        {
+            if (tasksList.Count == 0)
+                Console.WriteLine("Список задач пуст");
+            else
+            {
+                Console.WriteLine("Список текущих задач:");
+                for (int i = 0; i < tasksList.Count; i++)
+                    Console.WriteLine($"Задача {i + 1}: {tasksList[i]}");
+            }
+        }
+
+        /// <summary>
+        /// Метод отображает в консоль спикок текущих задач, запрашивает у пользователя ввод номера задачи для удаления, удаляет её, и выводит в консоль 
+        /// удаленную команду.
+        /// </summary>
+        /// <param name="tasksList">Список текущих задач</param>
+        static void RemoveTask(List<string> tasksList)
+        {
+            if (tasksList.Count == 0)
+                Console.WriteLine("Список задач пуст");
+            else
+            {
+                Console.WriteLine("Список текущих задач:");
+                for (int i = 0; i < tasksList.Count; i++)
+                    Console.WriteLine($"Задача {i+1}: {tasksList[i]}");
+                int taskNum = -1;
+                do
+                    Console.WriteLine("Введите номер задачи из списка текущих задач для удаления и нажмите Enter");
+                while ((!int.TryParse(Console.ReadLine(), out taskNum)) ||
+                    taskNum > tasksList.Count ||
+                    taskNum < 1);
+                    
+                var DeletedTask = tasksList[taskNum - 1];
+                tasksList.RemoveAt(taskNum - 1);
+                Console.WriteLine($"Задача {taskNum} \"{DeletedTask}\"  удалена");
+            }
+        }
+
         #endregion
 
         /// <summary>
-        /// Метод определяет, является ли входящая строка командой, и возвращает порядковый номер введеной команды из массива доступных команд. 
+        /// Метод определяет, является ли входящая строка командой, и возвращает порядковый номер введеной команды из списка доступных команд. 
         /// </summary>
         /// <param name="inputString"></param>
-        /// <param name="availableCommandsArray">Массив доступных команд</param>
-        /// <param name="echoCommandNumber">Индекс команды "/echo" в массиве доступных команд</param>
-        /// <returns>Возвращает порядковый номер команды из массива доступных команд, -1 если не команда найдена</returns>
-        static int DefineCommandNum(string inputString, string[] availableCommandsArray, int echoCommandNumber)
-       {
-            for (int i = 0; i < availableCommandsArray.Length; i++)
+        /// <param name="availableCommandsList">Список доступных команд</param>
+        /// <param name="echoCommandIndex">Индекс команды "/echo" в списке доступных команд</param>
+        /// <returns>Возвращает индекс команды из списка доступных команд, -1 если не команда найдена</returns>
+        static int DefineCommandNum(string inputString, List<string> availableCommandsList, int echoCommandIndex)
+        {
+            for (int i = 0; i < availableCommandsList.Count; i++)
             {
-                if (string.Equals(inputString, availableCommandsArray[i]) ||
+                if (string.Equals(inputString, availableCommandsList[i]) ||
                         (!string.IsNullOrEmpty(inputString) &&
-                        inputString.StartsWith(availableCommandsArray[i]) &&
-                        (i == echoCommandNumber)))
+                        inputString.StartsWith(availableCommandsList[i]) &&
+                        (i == echoCommandIndex)))
                     return i;
             }
             return -1;
@@ -107,65 +177,75 @@ namespace Interactive_Menu
 
 
         /// <summary>
-        /// Метод выполняет вызов команды по её порядковому номеру из массива доступных команд.
+        /// Метод выполняет вызов команды по её порядковому номеру из списка доступных команд.
         /// </summary>
-        /// <param name="commandNum">Порядковый номер команды из массива доступных команд</param>
+        /// <param name="commandNum">Порядковый номер команды из списка доступных команд</param>
         /// <param name="inputString">Входящая строка</param>
-        /// <param name="availableCommandsArray">Массив доступных команд</param>
-        /// <param name="echoCommandNumber">Индекс команды "/echo" в массиве доступных команд</param>
+        /// <param name="availableCommandsList">Список доступных команд</param>
+        /// <param name="echoCommandIndex">Индекс команды "/echo" в списке доступных команд</param>
         /// <param name="userName">Текущее имя пользователя</param>
-        static void ExecuteCommand(int commandNum, string inputString, string[] availableCommandsArray,
-                                   int echoCommandNumber, ref string userName)
+        /// <param name="tasksList">Список текущих задач</param>
+        static void ExecuteCommand(int commandNum, string inputString, List<string> availableCommandsList,
+                                   int echoCommandIndex, ref string userName, List<string> tasksList)
         {
-                    switch (commandNum)
-                    {
-                        case 0:
-                            PrintUserName(userName);
-                            StartCommand(ref userName);
-                            return;
-                        case 1:
-                            PrintUserName(userName);
-                            HelpCommand();
-                            return;
-                        case 2:
-                            PrintUserName(userName);
-                            InfoCommand();
-                            return;
-                        case 3:
-                            ExitCommand();
-                            return;
-                        case 4:
-                            EchoCommand(inputString, availableCommandsArray, echoCommandNumber, userName);
-                            return;
-                        case -1:
-                            return;
-                    }
+            if (commandNum != echoCommandIndex)
+                PrintUserName(userName);
+            switch (commandNum)
+            {
+                
+                case 0:
+                    EchoCommand(inputString, availableCommandsList, echoCommandIndex, userName);
+                    return;
+                case 1:
+                    StartCommand(ref userName);
+                    return;
+                case 2:
+                    HelpCommand();
+                    return;
+                case 3:
+                    InfoCommand();
+                    return;
+                case 4:
+                    ExitCommand();
+                    return;
+                case 5:
+                    AddTask(tasksList);
+                    return;
+                case 6:
+                    ShowTasks(tasksList);
+                    return;
+                case 7:
+                    RemoveTask(tasksList);
+                    return;
+                case -1:
+                    return;
+            }
         }
 
         /// <summary>
         /// Метод выводит в консоль строку со всеми доступными командами. Если задано имя пользователя, то к выводу добавляется команда 
-        /// "/echo" - последняя из массива доступных команд.
+        /// "/echo".
         /// </summary>
-        /// <param name="availableCommandsArray">Массив доступных команд</param>
-        /// <param name="echoCommandNumber">Индекс команды "/echo" в массиве доступных команд</param>
+        /// <param name="availableCommandsList">Список доступных команд</param>
+        /// <param name="echoCommandIndex">Индекс команды "/echo" в списке доступных команд</param>
         /// <param name="userName">Текущее имя пользователя</param>
-        static void PrintCommands(string[] availableCommandsArray, int echoCommandNumber, string userName)
+        static void PrintCommands(List<string> availableCommandsList, int echoCommandIndex, string userName)
         {
             Console.Write("Вам доступны команды: ");
-            for (int i = 0; i < availableCommandsArray.Length-1; i++)
+            for (int i = 1; i < availableCommandsList.Count; i++)
             {
-                if (i > 0) 
+                if (i > 1) 
                     Console.Write(", ");
-                Console.Write(availableCommandsArray[i]);
+                Console.Write(availableCommandsList[i]);
             }
             if (!string.IsNullOrEmpty(userName))
-                Console.WriteLine($", {availableCommandsArray[echoCommandNumber]}");
+                Console.WriteLine($", {availableCommandsList[echoCommandIndex]}");
             else
                 Console.WriteLine();
         }
 
         /// <summary>
-        /// Метод выводит имя пользователя, если оно задано.
+        /// Метод выводит на консоль имя пользователя, если оно задано.
         /// </summary>
         /// <param name="userName">Текущее имя пользователя</param>
         static void PrintUserName(string userName)
@@ -183,19 +263,18 @@ namespace Interactive_Menu
         public static void Main()
         {
             Console.InputEncoding = Encoding.GetEncoding("UTF-16");
-            Console.Write("Добрый день! ");
+            Console.Write("Добро пожаловать! ");
             do
             {
-                if (!string.IsNullOrEmpty(UserName))
-                    PrintUserName(UserName);
-                PrintCommands(AvailableCommands, EchoCommandNumber, UserName);
+                PrintUserName(UserName);
+                PrintCommands(AvailableCommands, EchoCommandIndex, UserName);
 
                 var inputString = Console.ReadLine();
                 if (!string.IsNullOrEmpty(inputString))
                 {
-                    CurrentString = inputString;
-                    var commandNum = DefineCommandNum(CurrentString, AvailableCommands, EchoCommandNumber);
-                    ExecuteCommand(commandNum, CurrentString, AvailableCommands, EchoCommandNumber, ref UserName);
+                    var commandNum = DefineCommandNum(inputString, AvailableCommands, EchoCommandIndex);
+                    if (commandNum >= 0)
+                        ExecuteCommand(commandNum, inputString, AvailableCommands, EchoCommandIndex, ref UserName, Tasks);
                 }
             }
             while (true);
