@@ -3,6 +3,28 @@
 namespace Interactive_Menu
 {
 
+    public class TaskCountLimitException : Exception
+    {
+        public TaskCountLimitException(int taskCountLimit) : base ($"Превышено максимальное количество задач равное {taskCountLimit}")
+        {
+        }
+    }
+
+    public class  TaskLengthLimitException : Exception
+    {
+        public TaskLengthLimitException(int taskLength, int taskLengthLimit) : base($"Длина задачи '{taskLength}' превышает максимально допустимое значение {taskLengthLimit}")
+        {
+        }
+        
+    }
+
+    public class DuplicateTaskException : Exception
+    {
+        public DuplicateTaskException(string task) : base($"Задача ‘{task}’ уже существует")
+        {
+        }
+    }
+
     internal class Program
     {
         /// <summary>
@@ -21,6 +43,10 @@ namespace Interactive_Menu
         /// Список текущих задач
         /// </summary>
         private static List<string> _tasks;
+
+        private static int _taskCountLimit;
+
+        private static int _taskLengthLimit;
 
         /// <summary>
         /// Инициализация статических полей программы
@@ -44,7 +70,7 @@ namespace Interactive_Menu
         /// Реализация команды "/start"
         /// </summary>
         /// <param name="userName">Текущее имя пользователя</param>
-        static void StartCommand(ref string userName)
+        static void StartCommand(out string userName)
         {
             string? inputString;
             do
@@ -54,11 +80,11 @@ namespace Interactive_Menu
             } while (string.IsNullOrEmpty(inputString));
             userName = inputString;
         }
-        
+
         /// <summary>
         /// Реальзация команды "/help"
         /// </summary>
-        static void HelpCommand()
+        static void HelpCommand(int taskCountLimit, int taskLengthLimit)
         {
             Console.WriteLine("Cправка по программе:\r\nКоманда /start: Если пользователь вводит команду /start, программа просит его ввести своё имя." +
                 "\r\nКоманда /help: Отображает краткую справочную информацию о том, как пользоваться программой." +
@@ -66,8 +92,10 @@ namespace Interactive_Menu
                 "\r\nКоманда /echo: Становится доступной после ввода имени. При вводе этой команды с аргументом (например, /echo Hello), программа возвращает " +
                 "введенный текст (в данном примере \"Hello\")." +
                 "\r\nКоманда /addtask: После ввода команды добавьте описание задачи. После добавления задачи выводится сообщение, что задача добавлена." +
-                "\r\nКоманда /showtasks: При вводе команды /showtasks бот отображает список всех добавленных задач." +
-                "\r\nКоманда /removetask: После ввода команды, отображается список задач с номерами. Введите номер задачи для её удаления." +
+                $"\r\n\tМаксимальная длина задачи:{taskLengthLimit}" +
+                $"\r\n\tМаксимальное количество задач:{taskCountLimit}" +
+                "\r\nКоманда /showtasks: После ввода команды отображается список всех добавленных задач." +
+                "\r\nКоманда /removetask: После ввода команды отображается список задач с номерами. Введите номер задачи для её удаления." +
                 "\r\nКоманда /exit: Завершить программу." +
                 "\r\nВводите команды строчными буквами для корректной работы приложения.\r\n");
         }
@@ -112,23 +140,36 @@ namespace Interactive_Menu
                 Console.WriteLine(subString.TrimStart());
             }
         }
-        /// <summary>
-        /// Добавление в список текущих задач новой задачи с описанием.
+
+         /// <summary>
+        /// Реализация команды "/addtask". Добавление в список текущих задач новой задачи с описанием.
         /// </summary>
         /// <param name="tasksList">Список текущих задач</param>
-        static void AddTask(List<string> tasksList)
+        static void AddTask(List<string> tasksList, int taskCountLimit, int taskLengthLimit)
         {
-            var taskDescription = "";
-            do
+            if (tasksList.Count >= taskCountLimit)
+                throw new TaskCountLimitException(taskCountLimit);
+            else
             {
-                Console.WriteLine("Введите описание задачи");
-                taskDescription = Console.ReadLine();
-            } while (string.IsNullOrEmpty(taskDescription));
-            tasksList.Add(taskDescription);
-            Console.WriteLine($"Добавлена задача # {tasksList.Count}: {tasksList[^1]}");
+                string? taskDescription = "";
+                do
+                {
+                    Console.WriteLine("Введите описание задачи");
+                    taskDescription = Console.ReadLine();
+                    if(!string.IsNullOrEmpty(taskDescription))
+                    {
+                        if (taskDescription.Length > taskLengthLimit)
+                            throw new TaskLengthLimitException(taskDescription.Length, taskLengthLimit);
+                        if (TaskInTasksListCheck(taskDescription, tasksList))
+                            throw new DuplicateTaskException(taskDescription);
+                    }
+                } while (string.IsNullOrEmpty(taskDescription) || (taskDescription.Length > taskLengthLimit));
+                tasksList.Add(taskDescription);
+                Console.WriteLine($"Добавлена задача # {tasksList.Count}: {tasksList[^1]}");
+            }
         }
         /// <summary>
-        /// Вывод в консоль списка текущих задач
+        /// Реализация команды "/showtasks". Вывод в консоль списка текущих задач
         /// </summary>
         /// <param name="tasksList">Список текущих задач</param>
         static void ShowTasks(List<string> tasksList)
@@ -144,8 +185,8 @@ namespace Interactive_Menu
         }
 
         /// <summary>
-        /// Метод отображает в консоль спикок текущих задач, запрашивает у пользователя ввод номера задачи для удаления, удаляет её, и выводит в консоль 
-        /// удаленную команду.
+        /// Реализация команды "/removetask". Метод отображает в консоль спикок текущих задач, запрашивает у пользователя ввод номера задачи для удаления, удаляет 
+        /// её, и выводит в консоль удаленную команду.
         /// </summary>
         /// <param name="tasksList">Список текущих задач</param>
         static void RemoveTask(List<string> tasksList)
@@ -172,6 +213,64 @@ namespace Interactive_Menu
 
         #endregion
 
+        static bool TaskInTasksListCheck(string inputTask, List<string> tasksList)
+        {
+            bool result = false;
+            foreach (string task in tasksList)
+            {
+                if (task.Equals(inputTask))
+                    result = true;
+            }
+            return result;
+        }
+
+        static int ParseAndValidateInt(string? str, int min, int max)
+        {
+            int result = 0;
+            bool check = int.TryParse(str, out result);
+            if (check && result>=min && result <=max)
+                return result;
+            else 
+                throw new ArgumentException($"Значение должно быть в диапазоне от {min} до {max}");
+        }
+
+        /// <summary>
+        /// Установка ограничения на максимальное количество задач.
+        /// </summary>
+        /// <param name="taskCountLimit">Максимальное количество задач</param>
+        static void SetTaskCountLimit(out int taskCountLimit)
+        {
+            string? inputString;
+            int inputTaskCountLimit;
+            bool isParsed;
+            do
+            {
+                Console.WriteLine("Введите максимально допустимое количество задач (от 1 до 100)");
+                inputString = Console.ReadLine();
+                isParsed = int.TryParse(inputString, out inputTaskCountLimit);
+                if (isParsed && (inputTaskCountLimit < 1 || inputTaskCountLimit > 100))
+                    throw new ArgumentException("Максимально допустимое количество задач от 1 до 100");
+            } while (string.IsNullOrEmpty(inputString) || !isParsed);
+            taskCountLimit = inputTaskCountLimit;
+        }
+
+        static void SetTaskLengthLimit(out int taskLengthLimit)
+        {
+            string? inputString;
+            int inputTaskLengthLimit;
+            bool isParsed;
+            do
+            {
+                Console.WriteLine("Введите максимально допустимую длину задачи (от 1 до 100)");
+                inputString = Console.ReadLine();
+                isParsed = int.TryParse(inputString, out inputTaskLengthLimit);
+                if (isParsed && (inputTaskLengthLimit < 1 || inputTaskLengthLimit > 100))
+                    throw new ArgumentException("Максимально допустимая длина задачи от 1 до 100");
+            } while (string.IsNullOrEmpty(inputString) || !isParsed);
+            taskLengthLimit = inputTaskLengthLimit;
+        }
+
+
         /// <summary>
         /// Метод определяет, является ли входящая строка командой, и возвращает порядковый номер введеной команды из словаря доступных команд. 
         /// </summary>
@@ -193,7 +292,7 @@ namespace Interactive_Menu
         /// <param name="userName">Текущее имя пользователя</param>
         /// <param name="tasksList">Список текущих задач</param>
         static void ExecuteCommand(int commandNum, string inputString, Dictionary<int, string> availableCommandsDict,
-                                   int echoCommandIndex, ref string userName, List<string> tasksList)
+                                   int echoCommandIndex, ref string userName, List<string> tasksList, int taskCountLimit, int taskLengthLimit)
         {
             if (commandNum != echoCommandIndex)
                 PrintUserName(userName);
@@ -203,10 +302,10 @@ namespace Interactive_Menu
                     EchoCommand(inputString, availableCommandsDict, echoCommandIndex, userName);
                     return;
                 case 1:
-                    StartCommand(ref userName);
+                    StartCommand(out userName);
                     return;
                 case 2:
-                    HelpCommand();
+                    HelpCommand(taskCountLimit, taskLengthLimit);
                     return;
                 case 3:
                     InfoCommand();
@@ -215,7 +314,7 @@ namespace Interactive_Menu
                     ExitCommand();
                     return;
                 case 5:
-                    AddTask(tasksList);
+                    AddTask(tasksList, taskCountLimit, taskLengthLimit);
                     return;
                 case 6:
                     ShowTasks(tasksList);
@@ -273,17 +372,48 @@ namespace Interactive_Menu
             Console.Write("Добро пожаловать! ");
             do
             {
-                PrintUserName(_userName);
-                PrintCommands(_availableCommandsDict, _echoCommandIndex, _userName);
-
-                var inputString = Console.ReadLine();
-                if (!string.IsNullOrEmpty(inputString))
+                try
                 {
-                    int commandNum = DefineCommandNum(inputString, _availableCommandsDict);
-                    ExecuteCommand(commandNum, inputString, _availableCommandsDict, _echoCommandIndex, ref _userName, _tasks);
+                    if (_taskCountLimit == 0)
+                        SetTaskCountLimit(out _taskCountLimit);
+                    if (_taskLengthLimit == 0)
+                        SetTaskLengthLimit(out _taskLengthLimit);
+                    PrintUserName(_userName);
+                    PrintCommands(_availableCommandsDict, _echoCommandIndex, _userName);
+                    var inputString = Console.ReadLine();
+                    if (!string.IsNullOrEmpty(inputString))
+                    {
+                        int commandNum = DefineCommandNum(inputString, _availableCommandsDict);
+                        ExecuteCommand(commandNum, inputString, _availableCommandsDict, _echoCommandIndex, ref _userName, _tasks, _taskCountLimit, _taskLengthLimit);
+                    }
+                }
+                catch (ArgumentException Ex)
+                {
+                    Console.WriteLine(Ex.Message);
+                }
+                catch (TaskCountLimitException Ex)
+                {
+                    Console.WriteLine(Ex.Message);
+                }
+                catch (TaskLengthLimitException Ex)
+                {
+                    Console.WriteLine(Ex.Message);
+                }
+                catch (DuplicateTaskException Ex)
+                {
+                    Console.WriteLine(Ex.Message);
+                }
+                catch (Exception Ex)
+                {
+                    Console.WriteLine("Произошла непредвиденная ошибка:");
+                    Console.WriteLine($"Тип исключения: {Ex.GetType()}");
+                    Console.WriteLine($"Исключение: {Ex.Message}");
+                    Console.WriteLine($"Трассировка стека: {Ex.StackTrace}");
+                    Console.WriteLine($"Внутреннее исключение: {Ex.InnerException}");
                 }
             }
             while (true);
+
         }
     }
 }
