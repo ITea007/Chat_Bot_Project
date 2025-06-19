@@ -34,7 +34,7 @@ namespace Interactive_Menu
         /// </summary>
         private static int _maxTaskCountLimit;
         /// <summary>
-        /// Заданное максимальная длина строки описания задачи
+        /// Заданная максимальная длина строки описания задачи
         /// </summary>
         private static int _taskLengthLimit;
         /// <summary>
@@ -48,7 +48,7 @@ namespace Interactive_Menu
 
 
         /// <summary>
-        /// Инициализация статических полей программы
+        /// Инициализация статических полей
         /// </summary>
         static Program()
         {
@@ -75,19 +75,17 @@ namespace Interactive_Menu
         /// <param name="userName">Текущее имя пользователя</param>
         static void StartCommand(out string userName)
         {
-            string? inputString;
-            do
-            {
-                Console.WriteLine("Введите имя пользователя");
-                inputString = Console.ReadLine();
-                ValidateString(inputString);
-            } while (string.IsNullOrEmpty(inputString));
+            Console.WriteLine("Введите имя пользователя");
+            var inputString = Console.ReadLine();
+            ValidateString(inputString);
             userName = inputString;
         }
 
         /// <summary>
         /// Реальзация команды "/help"
         /// </summary>
+        /// <param name="taskCountLimit">Заданное максимальное количество задач</param>
+        /// <param name="taskLengthLimit">Заданная максимальная длина строки описания задачи</param>
         static void HelpCommand(int taskCountLimit, int taskLengthLimit)
         {
             Console.WriteLine("Cправка по программе:\r\nКоманда /start: Если пользователь вводит команду /start, программа просит его ввести своё имя." +
@@ -128,16 +126,17 @@ namespace Interactive_Menu
 
         /// <summary>
         /// Реализация команды "/echo". Выводится на консоль строка, которая введена пользователем после "/echo"
-        /// Реализация метода: Проверяется наличие команды /echo и имени пользователя. Выделяется подстрока, убираются 
-        /// лишние пробелы вначале, выводится на консоль. 
+        /// Реализация метода: Проверяется наличие команды /echo - имени пользователя. Выделяется подстрока, убираются 
+        /// лишние пробелы вначале, выводится на консоль.
         /// </summary>
         /// <param name="inputString">Входящая строка</param>
         /// <param name="availableCommandsDict">Словарь доступных комманд</param>
         /// <param name="echoCommandIndex">Индекс команды "/echo" в списке доступных команд</param>
+        /// <param name="userName">Текущее имя пользователя</param>
         static void EchoCommand(string inputString, Dictionary<int, string> availableCommandsDict, int echoCommandIndex, string userName)
         {
-            if (!string.IsNullOrEmpty(inputString) &&
-                !string.IsNullOrEmpty(userName) && 
+            ValidateString(inputString);
+            if (!string.IsNullOrEmpty(userName) && 
                 inputString.StartsWith(availableCommandsDict[echoCommandIndex]))
             {
                 string subString = inputString.Substring(availableCommandsDict[echoCommandIndex].Length);
@@ -145,36 +144,35 @@ namespace Interactive_Menu
             }
         }
 
-         /// <summary>
-        /// Реализация команды "/addtask". Добавление в список текущих задач новой задачи с описанием.
+        /// <summary>
+        /// Реализация команды "/addtask". Добавление в список текущих задач новой задачи.
         /// </summary>
         /// <param name="tasksList">Список текущих задач</param>
+        /// <param name="taskCountLimit">Заданное максимальное количество задач</param>
+        /// <param name="taskLengthLimit">Заданная максимальная длина строки описания задачи</param>
+        /// <exception cref="TaskCountLimitException"></exception>
+        /// <exception cref="TaskLengthLimitException"></exception>
+        /// <exception cref="DuplicateTaskException"></exception>
         static void AddTask(List<string> tasksList, int taskCountLimit, int taskLengthLimit)
         {
             if (tasksList.Count >= taskCountLimit)
                 throw new TaskCountLimitException(taskCountLimit);
             else
             {
-                string? taskDescription = "";
-                do
-                {
-                    Console.WriteLine("Введите описание задачи");
-                    taskDescription = Console.ReadLine();
-                    ValidateString(taskDescription);
-                    if(!string.IsNullOrEmpty(taskDescription))
-                    {
-                        if (taskDescription.Length > taskLengthLimit)
-                            throw new TaskLengthLimitException(taskDescription.Length, taskLengthLimit);
-                        if (TaskInTasksListCheck(taskDescription, tasksList))
-                            throw new DuplicateTaskException(taskDescription);
-                    }
-                } while (string.IsNullOrEmpty(taskDescription) || (taskDescription.Length > taskLengthLimit));
-                tasksList.Add(taskDescription);
+                Console.WriteLine("Введите описание задачи");
+                var taskDescription = Console.ReadLine();
+                ValidateString(taskDescription);
+                if (taskDescription.Length > taskLengthLimit)
+                    throw new TaskLengthLimitException(taskDescription.Length, taskLengthLimit);
+                if (TaskInTasksListCheck(taskDescription, tasksList))
+                    throw new DuplicateTaskException(taskDescription);
+                else
+                    tasksList.Add(taskDescription);
                 Console.WriteLine($"Добавлена задача # {tasksList.Count}: {tasksList[^1]}");
             }
         }
         /// <summary>
-        /// Реализация команды "/showtasks". Вывод в консоль списка текущих задач
+        /// Реализация команды "/showtasks". Вывод в консоль списка текущих задач.
         /// </summary>
         /// <param name="tasksList">Список текущих задач</param>
         static void ShowTasks(List<string> tasksList)
@@ -190,8 +188,8 @@ namespace Interactive_Menu
         }
 
         /// <summary>
-        /// Реализация команды "/removetask". Метод отображает в консоль спикок текущих задач, запрашивает у пользователя ввод номера задачи для удаления, удаляет 
-        /// её, и выводит в консоль удаленную команду.
+        /// Реализация команды "/removetask". Метод отображает в консоль спикок текущих задач, запрашивает у пользователя ввод номера задачи 
+        /// для удаления, удаляет её, и выводит в консоль удаленную команду.
         /// </summary>
         /// <param name="tasksList">Список текущих задач</param>
         static void RemoveTask(List<string> tasksList)
@@ -203,27 +201,35 @@ namespace Interactive_Menu
                 Console.WriteLine("Список текущих задач:");
                 for (int i = 0; i < tasksList.Count; i++)
                     Console.WriteLine($"Задача {i+1}: {tasksList[i]}");
-                int taskNum = -1;
-                do
-                    Console.WriteLine("Введите номер задачи из списка текущих задач для удаления и нажмите Enter");
-                while ((!int.TryParse(Console.ReadLine(), out taskNum)) ||
-                    taskNum > tasksList.Count ||
-                    taskNum < 1);
-                    
+                Console.WriteLine("Введите номер задачи из списка текущих задач для удаления и нажмите Enter");
+                var inputString = Console.ReadLine();
+                ValidateString(inputString);
+                int taskNum = ParseAndValidateInt(inputString, 1, tasksList.Count);
                 var DeletedTask = tasksList[taskNum - 1];
                 tasksList.RemoveAt(taskNum - 1);
                 Console.WriteLine($"Задача {taskNum} \"{DeletedTask}\"  удалена");
             }
         }
-
         #endregion
 
+        /// <summary>
+        /// Проверяет, что строка не равна null, не равна пустой строке и имеет какие-то символы кроме проблема. 
+        /// В противном случае выбрасывает ArgumentException с сообщением. 
+        /// </summary>
+        /// <param name="str">Строка для проверки</param>
+        /// <exception cref="ArgumentException"></exception>
         static void ValidateString(string? str)
         {
             if (string.IsNullOrEmpty(str) || string.IsNullOrEmpty(str.Trim()))
                 throw new ArgumentException("Ошибка: Пустая строка. Пожалуйста, вводите непустое значение");
         }
 
+        /// <summary>
+        /// Проверка, имеется ли задача в списке задач
+        /// </summary>
+        /// <param name="inputTask">Задача для проверки</param>
+        /// <param name="tasksList">Список задач</param>
+        /// <returns></returns>
         static bool TaskInTasksListCheck(string inputTask, List<string> tasksList)
         {
             bool result = false;
@@ -235,6 +241,15 @@ namespace Interactive_Menu
             return result;
         }
 
+        /// <summary>
+        /// Метод приводит полученную строку к int и проверяет, что оно находится в диапазоне min и max. 
+        /// В противном случае выбрасывает ArgumentException с сообщением.
+        /// </summary>
+        /// <param name="str">Строка для обработки</param>
+        /// <param name="min">Минимальное значение диапазона</param>
+        /// <param name="max">Максимальное значение диапазона</param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentException"></exception>
         static int ParseAndValidateInt(string? str, int min, int max)
         {
             int result = 0;
@@ -246,35 +261,31 @@ namespace Interactive_Menu
         }
 
         /// <summary>
-        /// Установка ограничения на максимальное количество задач.
+        /// Установка ограничения на максимальное количество задач в диапазоне.
         /// </summary>
-        /// <param name="taskCountLimit">Максимальное количество задач</param>
+        /// <param name="taskCountLimit">Максимально допустимое количество задач</param>
+        /// <param name="min">Минимальное значение диапазона</param>
+        /// <param name="max">Максимальное значение диапазона</param>
         static void SetTaskCountLimit(out int taskCountLimit, int min, int max)
         {
-            string? inputString;
-            int inputTaskCountLimit;
-            do
-            {
-                Console.WriteLine($"Введите максимально допустимое количество задач (от {min} до {max})");
-                inputString = Console.ReadLine();
-                ValidateString(inputString);
-                inputTaskCountLimit = ParseAndValidateInt(inputString, min, max);
-            } while (string.IsNullOrEmpty(inputString));
-            taskCountLimit = inputTaskCountLimit;
+            Console.WriteLine($"Введите максимально допустимое количество задач (от {min} до {max})");
+            var inputString = Console.ReadLine();
+            ValidateString(inputString);
+            taskCountLimit = ParseAndValidateInt(inputString, min, max);
         }
 
+        /// <summary>
+        /// Установка ограничения на допустимую длину задачи.
+        /// </summary>
+        /// <param name="taskLengthLimit">Максимально допустимая длина задачи</param>
+        /// <param name="min">Минимальное значение диапазона</param>
+        /// <param name="max">Максимальное значение диапазона</param>
         static void SetTaskLengthLimit(out int taskLengthLimit, int min, int max)
         {
-            string? inputString;
-            int inputTaskLengthLimit;
-            do
-            {
-                Console.WriteLine($"Введите максимально допустимую длину задачи (от {min} до {max})");
-                inputString = Console.ReadLine();
-                ValidateString(inputString);
-                inputTaskLengthLimit = ParseAndValidateInt(inputString, min, max);
-            } while (string.IsNullOrEmpty(inputString));
-            taskLengthLimit = inputTaskLengthLimit;
+            Console.WriteLine($"Введите максимально допустимую длину задачи (от {min} до {max})");
+            var inputString = Console.ReadLine();
+            ValidateString(inputString);
+            taskLengthLimit = ParseAndValidateInt(inputString, min, max);
         }
 
         /// <summary>
@@ -388,11 +399,8 @@ namespace Interactive_Menu
                     PrintCommands(_availableCommandsDict, _echoCommandIndex, _userName);
                     var inputString = Console.ReadLine();
                     ValidateString(inputString);
-                    if (!string.IsNullOrEmpty(inputString))
-                    {
-                        int commandNum = DefineCommandNum(inputString, _availableCommandsDict);
-                        ExecuteCommand(commandNum, inputString, _availableCommandsDict, _echoCommandIndex, ref _userName, _tasks, _taskCountLimit, _taskLengthLimit);
-                    }
+                    int commandNum = DefineCommandNum(inputString, _availableCommandsDict);
+                    ExecuteCommand(commandNum, inputString, _availableCommandsDict, _echoCommandIndex, ref _userName, _tasks, _taskCountLimit, _taskLengthLimit);
                 }
                 catch (ArgumentException Ex)
                 {
@@ -420,7 +428,6 @@ namespace Interactive_Menu
                 }
             }
             while (true);
-
         }
     }
 }
