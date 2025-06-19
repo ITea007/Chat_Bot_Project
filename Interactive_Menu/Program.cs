@@ -1,30 +1,8 @@
-﻿using System.Text;
+﻿using System.ComponentModel;
+using System.Text;
 
 namespace Interactive_Menu
 {
-
-    public class TaskCountLimitException : Exception
-    {
-        public TaskCountLimitException(int taskCountLimit) : base ($"Превышено максимальное количество задач равное {taskCountLimit}")
-        {
-        }
-    }
-
-    public class  TaskLengthLimitException : Exception
-    {
-        public TaskLengthLimitException(int taskLength, int taskLengthLimit) : base($"Длина задачи '{taskLength}' превышает максимально допустимое значение {taskLengthLimit}")
-        {
-        }
-        
-    }
-
-    public class DuplicateTaskException : Exception
-    {
-        public DuplicateTaskException(string task) : base($"Задача ‘{task}’ уже существует")
-        {
-        }
-    }
-
     internal class Program
     {
         /// <summary>
@@ -43,10 +21,31 @@ namespace Interactive_Menu
         /// Список текущих задач
         /// </summary>
         private static List<string> _tasks;
-
+        /// <summary>
+        /// Заданное максимальное количество задач
+        /// </summary>
         private static int _taskCountLimit;
-
+        /// <summary>
+        /// Минимально допустимое количество задач
+        /// </summary>
+        private static int _minTaskCountLimit;
+        /// <summary>
+        /// Максимально допустимое количество задач
+        /// </summary>
+        private static int _maxTaskCountLimit;
+        /// <summary>
+        /// Заданное максимальная длина строки описания задачи
+        /// </summary>
         private static int _taskLengthLimit;
+        /// <summary>
+        /// Минимально допустимая длина строки описания задачи
+        /// </summary>
+        private static int _minTaskLengthLimit;
+        /// <summary>
+        /// Максимально допустимая длина строки описания задачи
+        /// </summary>
+        private static int _maxTaskLengthLimit;
+
 
         /// <summary>
         /// Инициализация статических полей программы
@@ -62,6 +61,10 @@ namespace Interactive_Menu
             };
             _echoCommandIndex = _availableCommandsDict.Where(i => i.Value.Equals("/echo")).FirstOrDefault().Key;
             _tasks = new List<string>();
+            _minTaskCountLimit = 1;
+            _maxTaskCountLimit = 100;
+            _minTaskLengthLimit = 1;
+            _maxTaskLengthLimit = 100;
         }
 
         #region CommandsRealization
@@ -77,6 +80,7 @@ namespace Interactive_Menu
             {
                 Console.WriteLine("Введите имя пользователя");
                 inputString = Console.ReadLine();
+                ValidateString(inputString);
             } while (string.IsNullOrEmpty(inputString));
             userName = inputString;
         }
@@ -106,8 +110,8 @@ namespace Interactive_Menu
         static void InfoCommand()
         {
             Console.WriteLine("\r\n" +
-                                "*  Текущая версия программы 3.0.  Дата создания 17-06-2025\r\n" +
-                                "   Добавлено ...\r\n" +
+                                "*  Текущая версия программы 3.0.  Дата создания 19-06-2025\r\n" +
+                                "   Добавлена обработка ошибок через исключения(ДЗ 4) \r\n" +
                                 "*  Текущая версия программы 2.0.  Дата создания 16-06-2025\r\n" +
                                 "   Добавлены команды /addtask, /showtasks, /removetask\r\n" +
                                 "*  Версия программы 1.0.  Дата создания 25-05-2025\r\n" +
@@ -156,6 +160,7 @@ namespace Interactive_Menu
                 {
                     Console.WriteLine("Введите описание задачи");
                     taskDescription = Console.ReadLine();
+                    ValidateString(taskDescription);
                     if(!string.IsNullOrEmpty(taskDescription))
                     {
                         if (taskDescription.Length > taskLengthLimit)
@@ -213,6 +218,12 @@ namespace Interactive_Menu
 
         #endregion
 
+        static void ValidateString(string? str)
+        {
+            if (string.IsNullOrEmpty(str) || string.IsNullOrEmpty(str.Trim()))
+                throw new ArgumentException("Ошибка: Пустая строка. Пожалуйста, вводите непустое значение");
+        }
+
         static bool TaskInTasksListCheck(string inputTask, List<string> tasksList)
         {
             bool result = false;
@@ -227,8 +238,8 @@ namespace Interactive_Menu
         static int ParseAndValidateInt(string? str, int min, int max)
         {
             int result = 0;
-            bool check = int.TryParse(str, out result);
-            if (check && result>=min && result <=max)
+            bool isParsed = int.TryParse(str, out result);
+            if (isParsed && result >= min && result <= max)
                 return result;
             else 
                 throw new ArgumentException($"Значение должно быть в диапазоне от {min} до {max}");
@@ -238,38 +249,33 @@ namespace Interactive_Menu
         /// Установка ограничения на максимальное количество задач.
         /// </summary>
         /// <param name="taskCountLimit">Максимальное количество задач</param>
-        static void SetTaskCountLimit(out int taskCountLimit)
+        static void SetTaskCountLimit(out int taskCountLimit, int min, int max)
         {
             string? inputString;
             int inputTaskCountLimit;
-            bool isParsed;
             do
             {
-                Console.WriteLine("Введите максимально допустимое количество задач (от 1 до 100)");
+                Console.WriteLine($"Введите максимально допустимое количество задач (от {min} до {max})");
                 inputString = Console.ReadLine();
-                isParsed = int.TryParse(inputString, out inputTaskCountLimit);
-                if (isParsed && (inputTaskCountLimit < 1 || inputTaskCountLimit > 100))
-                    throw new ArgumentException("Максимально допустимое количество задач от 1 до 100");
-            } while (string.IsNullOrEmpty(inputString) || !isParsed);
+                ValidateString(inputString);
+                inputTaskCountLimit = ParseAndValidateInt(inputString, min, max);
+            } while (string.IsNullOrEmpty(inputString));
             taskCountLimit = inputTaskCountLimit;
         }
 
-        static void SetTaskLengthLimit(out int taskLengthLimit)
+        static void SetTaskLengthLimit(out int taskLengthLimit, int min, int max)
         {
             string? inputString;
             int inputTaskLengthLimit;
-            bool isParsed;
             do
             {
-                Console.WriteLine("Введите максимально допустимую длину задачи (от 1 до 100)");
+                Console.WriteLine($"Введите максимально допустимую длину задачи (от {min} до {max})");
                 inputString = Console.ReadLine();
-                isParsed = int.TryParse(inputString, out inputTaskLengthLimit);
-                if (isParsed && (inputTaskLengthLimit < 1 || inputTaskLengthLimit > 100))
-                    throw new ArgumentException("Максимально допустимая длина задачи от 1 до 100");
-            } while (string.IsNullOrEmpty(inputString) || !isParsed);
+                ValidateString(inputString);
+                inputTaskLengthLimit = ParseAndValidateInt(inputString, min, max);
+            } while (string.IsNullOrEmpty(inputString));
             taskLengthLimit = inputTaskLengthLimit;
         }
-
 
         /// <summary>
         /// Метод определяет, является ли входящая строка командой, и возвращает порядковый номер введеной команды из словаря доступных команд. 
@@ -375,12 +381,13 @@ namespace Interactive_Menu
                 try
                 {
                     if (_taskCountLimit == 0)
-                        SetTaskCountLimit(out _taskCountLimit);
+                        SetTaskCountLimit(out _taskCountLimit, _minTaskCountLimit, _maxTaskCountLimit);
                     if (_taskLengthLimit == 0)
-                        SetTaskLengthLimit(out _taskLengthLimit);
+                        SetTaskLengthLimit(out _taskLengthLimit, _minTaskLengthLimit, _maxTaskLengthLimit);
                     PrintUserName(_userName);
                     PrintCommands(_availableCommandsDict, _echoCommandIndex, _userName);
                     var inputString = Console.ReadLine();
+                    ValidateString(inputString);
                     if (!string.IsNullOrEmpty(inputString))
                     {
                         int commandNum = DefineCommandNum(inputString, _availableCommandsDict);
