@@ -220,7 +220,7 @@ namespace Interactive_Menu
         /// <exception cref="ArgumentException"></exception>
         static void ValidateString(string? str)
         {
-            if (string.IsNullOrEmpty(str) || string.IsNullOrEmpty(str.Trim()))
+            if (string.IsNullOrWhiteSpace(str))
                 throw new ArgumentException("Ошибка: Пустая строка. Пожалуйста, вводите непустое значение");
         }
 
