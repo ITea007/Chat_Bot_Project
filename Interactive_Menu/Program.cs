@@ -1,4 +1,5 @@
-﻿using System.ComponentModel;
+﻿using System;
+using System.ComponentModel;
 using System.Text;
 
 namespace Interactive_Menu
@@ -8,7 +9,7 @@ namespace Interactive_Menu
         /// <summary>
         /// Текущее имя пользователя
         /// </summary>
-        private static string _userName;
+        private static ToDoUser _user;
         /// <summary>
         /// Доступные пользователю команды
         /// </summary>
@@ -18,9 +19,13 @@ namespace Interactive_Menu
         /// </summary>
         private static readonly int _echoCommandIndex;
         /// <summary>
-        /// Список текущих задач
+        /// /// Индекс команды "/completetask" в списке доступных команд
         /// </summary>
-        private static List<string> _tasks;
+        private static readonly int _completetaskCommandIndex;
+        /// <summary>
+        /// Список задач
+        /// </summary>
+        private static List<ToDoItem> _tasks;
         /// <summary>
         /// Заданное максимальное количество задач
         /// </summary>
@@ -52,15 +57,17 @@ namespace Interactive_Menu
         /// </summary>
         static Program()
         {
-            _userName = "";
+            _user = new ToDoUser("");
             _availableCommandsDict = new Dictionary<int, string>()
             {
                 { 0, "/echo" }, { 1, "/start" }, { 2, "/help" },
                 { 3, "/info" }, { 4, "/exit" }, { 5, "/addtask"},
-                { 6, "/showtasks"}, { 7, "/removetask"}
+                { 6, "/showtasks"}, { 7, "/removetask"}, { 8, "/showalltasks"},
+                { 9, "/completetask"}
             };
             _echoCommandIndex = _availableCommandsDict.Where(i => i.Value.Equals("/echo")).FirstOrDefault().Key;
-            _tasks = new List<string>();
+            _completetaskCommandIndex = _availableCommandsDict.Where(i => i.Value.Equals("/completetask")).FirstOrDefault().Key;
+            _tasks = new List<ToDoItem>();
             _minTaskCountLimit = 1;
             _maxTaskCountLimit = 100;
             _minTaskLengthLimit = 1;
@@ -72,13 +79,14 @@ namespace Interactive_Menu
         /// <summary>
         /// Реализация команды "/start"
         /// </summary>
-        /// <param name="userName">Текущее имя пользователя</param>
-        static void StartCommand(out string userName)
+        /// <param name="user">Пользователь</param>
+        static void StartCommand(ref ToDoUser user)
         {
             Console.WriteLine("Введите имя пользователя");
             var inputString = Console.ReadLine();
             ValidateString(inputString);
-            userName = inputString;
+            user = new ToDoUser(inputString);
+            //user.TelegramUserName = inputString;
         }
 
         /// <summary>
@@ -96,8 +104,11 @@ namespace Interactive_Menu
                 "\r\nКоманда /addtask: После ввода команды добавьте описание задачи. После добавления задачи выводится сообщение, что задача добавлена." +
                 $"\r\n\tМаксимальная длина задачи:{taskLengthLimit}" +
                 $"\r\n\tМаксимальное количество задач:{taskCountLimit}" +
-                "\r\nКоманда /showtasks: После ввода команды отображается список всех добавленных задач." +
+                "\r\nКоманда /showtasks: После ввода команды отображается список всех активных задач." +
+                "\r\nКоманда /showalltasks: После ввода команды отображается список всех задач." +
                 "\r\nКоманда /removetask: После ввода команды отображается список задач с номерами. Введите номер задачи для её удаления." +
+                "\r\nКоманда /complete: Используется для завершения задачи. При вводе этой команды с номером задачи " +
+                "\r\n(например, /complete 0167b785-b830-4d02-b82a-881b0b678034), программа завершает задачу, её статус станосится Completed." +
                 "\r\nКоманда /exit: Завершить программу." +
                 "\r\nВводите команды строчными буквами для корректной работы приложения.\r\n");
         }
@@ -108,6 +119,8 @@ namespace Interactive_Menu
         static void InfoCommand()
         {
             Console.WriteLine("\r\n" +
+                                "*  Текущая версия программы 4.0.  Дата создания 28-07-2025\r\n" +
+                                "   Добавлены команды /completetask, /showalltasks, изменена логика команды /showtasks(ДЗ 5) \r\n" +
                                 "*  Текущая версия программы 3.0.  Дата создания 19-06-2025\r\n" +
                                 "   Добавлена обработка ошибок через исключения(ДЗ 4) \r\n" +
                                 "*  Текущая версия программы 2.0.  Дата создания 16-06-2025\r\n" +
@@ -132,11 +145,11 @@ namespace Interactive_Menu
         /// <param name="inputString">Входящая строка</param>
         /// <param name="availableCommandsDict">Словарь доступных комманд</param>
         /// <param name="echoCommandIndex">Индекс команды "/echo" в списке доступных команд</param>
-        /// <param name="userName">Текущее имя пользователя</param>
-        static void EchoCommand(string inputString, Dictionary<int, string> availableCommandsDict, int echoCommandIndex, string userName)
+        /// <param name="user">Текущий пользователь</param>
+        static void EchoCommand(string inputString, Dictionary<int, string> availableCommandsDict, int echoCommandIndex, ToDoUser user)
         {
             ValidateString(inputString);
-            if (!string.IsNullOrEmpty(userName) && 
+            if (!string.IsNullOrEmpty(user.TelegramUserName) && 
                 inputString.StartsWith(availableCommandsDict[echoCommandIndex]))
             {
                 string subString = inputString.Substring(availableCommandsDict[echoCommandIndex].Length);
@@ -145,15 +158,16 @@ namespace Interactive_Menu
         }
 
         /// <summary>
-        /// Реализация команды "/addtask". Добавление в список текущих задач новой задачи.
+        /// Реализация команды "/addtask". Добавление в Список задач новой задачи.
         /// </summary>
-        /// <param name="tasksList">Список текущих задач</param>
+        /// <param name="tasksList">Список задач</param>
         /// <param name="taskCountLimit">Заданное максимальное количество задач</param>
         /// <param name="taskLengthLimit">Заданная максимальная длина строки описания задачи</param>
+        /// <param name="user">Текущий пользователь</param>
         /// <exception cref="TaskCountLimitException"></exception>
         /// <exception cref="TaskLengthLimitException"></exception>
         /// <exception cref="DuplicateTaskException"></exception>
-        static void AddTask(List<string> tasksList, int taskCountLimit, int taskLengthLimit)
+        static void AddTask(List<ToDoItem> tasksList, int taskCountLimit, int taskLengthLimit, ToDoUser user)
         {
             if (tasksList.Count >= taskCountLimit)
                 throw new TaskCountLimitException(taskCountLimit);
@@ -167,47 +181,100 @@ namespace Interactive_Menu
                 if (TaskInTasksListCheck(taskDescription, tasksList))
                     throw new DuplicateTaskException(taskDescription);
                 else
-                    tasksList.Add(taskDescription);
-                Console.WriteLine($"Добавлена задача # {tasksList.Count}: {tasksList[^1]}");
+                    tasksList.Add(new ToDoItem(user, taskDescription));
+                Console.WriteLine($"Добавлена задача {tasksList[^1].Name} - {tasksList[^1].CreatedAt} - {tasksList[^1].Id}");
             }
         }
         /// <summary>
-        /// Реализация команды "/showtasks". Вывод в консоль списка текущих задач.
+        /// Реализация команды "/showtasks". Вывод в консоль списка текущих активных задач. 
         /// </summary>
-        /// <param name="tasksList">Список текущих задач</param>
-        static void ShowTasks(List<string> tasksList)
-        {
-            if (tasksList.Count == 0)
-                Console.WriteLine("Список задач пуст");
+        /// <param name="tasksList">Список задач</param>
+        static void ShowTasks(List<ToDoItem> tasksList)
+        { 
+            if ((tasksList.Count == 0) || (!tasksList.Any(i => i.State == ToDoItemState.Active)))
+                Console.WriteLine("Список текущих задач пуст");
             else
             {
                 Console.WriteLine("Список текущих задач:");
-                for (int i = 0; i < tasksList.Count; i++)
-                    Console.WriteLine($"Задача {i + 1}: {tasksList[i]}");
+                for (int i = 0; i < tasksList.Count ; i++)
+                    if (tasksList[i].State == ToDoItemState.Active)
+                        Console.WriteLine($"Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - {tasksList[i].Id}");
             }
         }
 
         /// <summary>
-        /// Реализация команды "/removetask". Метод отображает в консоль спикок текущих задач, запрашивает у пользователя ввод номера задачи 
-        /// для удаления, удаляет её, и выводит в консоль удаленную команду.
+        /// Реализация команды "/showalltasks". Вывод в консоль списка всех задач.
         /// </summary>
-        /// <param name="tasksList">Список текущих задач</param>
-        static void RemoveTask(List<string> tasksList)
+        /// <param name="tasksList">Список задач</param>
+        static void ShowAllTasks(List<ToDoItem> tasksList)
         {
+
             if (tasksList.Count == 0)
                 Console.WriteLine("Список задач пуст");
             else
             {
-                Console.WriteLine("Список текущих задач:");
+                Console.WriteLine("Список всех задач:");
                 for (int i = 0; i < tasksList.Count; i++)
-                    Console.WriteLine($"Задача {i+1}: {tasksList[i]}");
+                    Console.WriteLine($"({tasksList[i].State}) Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - {tasksList[i].Id}");
+            }
+        }
+
+        /// <summary>
+        /// Реализация команды "/completetask". Завершение задачи. Номер задачи определяется после удаления названия команды из начала строки.
+        /// </summary>
+        /// <param name="tasksList">Список задач</param>
+        /// <param name="input">Входящая строка</param>
+        static void CompleteTask(List<ToDoItem> tasksList, string input)
+        {
+            ShowTasks(tasksList);
+            if (tasksList.Count > 0)
+            {
+                if (input.StartsWith("/completetask"))
+                {
+                    string subString = input.Substring("/completetask".Length).TrimStart();
+                    var taskChangedState = tasksList.Where(i => String.Equals(i.Id.ToString(), subString)).FirstOrDefault();
+                    if (taskChangedState != null)
+                    {
+                        taskChangedState.State = ToDoItemState.Completed;
+                        taskChangedState.StateChangedAt = DateTime.UtcNow;
+                        Console.WriteLine($"Задача \"{taskChangedState.Name}\" - {taskChangedState.CreatedAt} - {taskChangedState.Id} завершена");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Не найдена задача с номером {subString} в списке текущих задач");
+                    }
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Реализация команды "/removetask". Метод отображает в консоль спикок задач, запрашивает у пользователя ввод номера задачи 
+        /// для удаления, удаляет её из списка задач, и выводит в консоль удаленную задачу.
+        /// </summary>
+        /// <param name="tasksList">Список задач</param>
+        static void RemoveTask(List<ToDoItem> tasksList)
+        {
+            ShowAllTasks(tasksList);
+            if (tasksList.Count > 0)
+            {
                 Console.WriteLine("Введите номер задачи из списка текущих задач для удаления и нажмите Enter");
                 var inputString = Console.ReadLine();
                 ValidateString(inputString);
-                int taskNum = ParseAndValidateInt(inputString, 1, tasksList.Count);
-                var DeletedTask = tasksList[taskNum - 1];
-                tasksList.RemoveAt(taskNum - 1);
-                Console.WriteLine($"Задача {taskNum} \"{DeletedTask}\"  удалена");
+
+                bool isDeleted = false;
+                for (int i = 0; i < tasksList.Count; i++)
+                {
+                    if (String.Equals(tasksList[i].Id.ToString(), inputString))
+                    {
+                        var DeletedTask = tasksList[i];
+                        tasksList.RemoveAt(i);
+                        isDeleted = true;
+                        Console.WriteLine($"Задача \"{DeletedTask.Name}\" - {DeletedTask.CreatedAt} - {DeletedTask.Id} удалена");
+                    }
+                }
+                if (!isDeleted)
+                    Console.WriteLine($"Не найдена задача с номером {inputString} в списке текущих задач");
             }
         }
         #endregion
@@ -230,12 +297,12 @@ namespace Interactive_Menu
         /// <param name="inputTask">Задача для проверки</param>
         /// <param name="tasksList">Список задач</param>
         /// <returns></returns>
-        static bool TaskInTasksListCheck(string inputTask, List<string> tasksList)
+        static bool TaskInTasksListCheck(string inputTask, List<ToDoItem> tasksList)
         {
             bool result = false;
-            foreach (string task in tasksList)
+            foreach (ToDoItem task in tasksList)
             {
-                if (task.Equals(inputTask))
+                if (task.Name.Equals(inputTask))
                     result = true;
             }
             return result;
@@ -289,37 +356,55 @@ namespace Interactive_Menu
         }
 
         /// <summary>
-        /// Метод определяет, является ли входящая строка командой, и возвращает порядковый номер введеной команды из словаря доступных команд. 
+        /// Метод определяет, является ли входящая строка командой, и возвращает порядковый номер введеной команды из словаря доступных команд.
         /// </summary>
-        /// <param name="inputString"></param>
-        /// <param name="availableCommandsDict">Словарь доступных команд</param>
-        /// <returns>Возвращает индекс команды из списка доступных команд</returns>
-        static int DefineCommandNum(string inputString, Dictionary<int, string> availableCommandsDict)
-        {
-            return availableCommandsDict.Where(i => i.Value.Equals(inputString)).FirstOrDefault().Key;
-        }
-
-        /// <summary>
-        /// Метод выполняет вызов команды по её порядковому номеру из словаря доступных команд.
-        /// </summary>
-        /// <param name="commandNum">Порядковый номер команды из списка доступных команд</param>
         /// <param name="inputString">Входящая строка</param>
         /// <param name="availableCommandsDict">Словарь доступных команд</param>
-        /// <param name="echoCommandIndex">Индекс команды "/echo" в списке доступных команд</param>
-        /// <param name="userName">Текущее имя пользователя</param>
-        /// <param name="tasksList">Список текущих задач</param>
+        /// <param name="echoCommandIndex">Ключ команды "/echo"</param>
+        /// <param name="completetaskCommandIndex">Ключ команды "/completetask"</param>
+        /// <returns>Возвращает ключ команды из словаря доступных команд, или -1, если её в словаре нет</returns>
+        static int DefineCommandNum(string inputString, Dictionary<int, string> availableCommandsDict, int echoCommandIndex , int completetaskCommandIndex)
+        {
+            if (inputString.StartsWith(availableCommandsDict[echoCommandIndex]) 
+                || inputString.StartsWith(availableCommandsDict[completetaskCommandIndex]))
+            {
+                return availableCommandsDict.
+                    Where(i =>
+                        inputString.StartsWith(i.Value)).
+                    FirstOrDefault().
+                    Key;
+            }
+            else
+            {
+                var defaultKeyValuePair = new KeyValuePair<int, string>(-1, "");
+                return availableCommandsDict.Where(i => i.Value.Equals(inputString)).FirstOrDefault(defaultKeyValuePair).Key;
+            }
+        }
+
+
+        /// <summary>
+        /// Метод выполняет вызов команды по её ключу из словаря доступных команд.
+        /// </summary>
+        /// <param name="commandNum">Порядковый номер команды из словаря доступных команд</param>
+        /// <param name="inputString">Входящая строка</param>
+        /// <param name="availableCommandsDict">Словарь доступных команд</param>
+        /// <param name="echoCommandIndex">Ключ команды "/echo" в словаре доступных команд</param>
+        /// <param name="tasksList">Список задач</param>
+        /// <param name="taskCountLimit">Максимально допустимое количество задач</param>
+        /// <param name="taskLengthLimit">Максимально допустимая длина задачи</param>
+        /// <param name="user">Текущий пользователь</param>
         static void ExecuteCommand(int commandNum, string inputString, Dictionary<int, string> availableCommandsDict,
-                                   int echoCommandIndex, ref string userName, List<string> tasksList, int taskCountLimit, int taskLengthLimit)
+                                   int echoCommandIndex, List<ToDoItem> tasksList, int taskCountLimit, int taskLengthLimit, ref ToDoUser user)
         {
             if (commandNum != echoCommandIndex)
-                PrintUserName(userName);
+                PrintUserName(user);
             switch (commandNum)
             {
                 case 0:
-                    EchoCommand(inputString, availableCommandsDict, echoCommandIndex, userName);
+                    EchoCommand(inputString, availableCommandsDict, echoCommandIndex, user);
                     return;
                 case 1:
-                    StartCommand(out userName);
+                    StartCommand(ref user);
                     return;
                 case 2:
                     HelpCommand(taskCountLimit, taskLengthLimit);
@@ -331,13 +416,19 @@ namespace Interactive_Menu
                     ExitCommand();
                     return;
                 case 5:
-                    AddTask(tasksList, taskCountLimit, taskLengthLimit);
+                    AddTask(tasksList, taskCountLimit, taskLengthLimit, user);
                     return;
                 case 6:
                     ShowTasks(tasksList);
                     return;
                 case 7:
                     RemoveTask(tasksList);
+                    return;
+                case 8:
+                    ShowAllTasks(tasksList);
+                    return;
+                case 9:
+                    CompleteTask(tasksList, inputString);
                     return;
             }
         }
@@ -347,8 +438,8 @@ namespace Interactive_Menu
         /// </summary>
         /// <param name="availableCommandsDict">Словарь доступных команд</param>
         /// <param name="echoCommandIndex">Индекс команды "/echo" в списке доступных команд</param>
-        /// <param name="userName">Текущее имя пользователя</param>
-        static void PrintCommands(Dictionary<int, string> availableCommandsDict, int echoCommandIndex, string userName)
+        /// <param name="user">Текущий пользователь</param>
+        static void PrintCommands(Dictionary<int, string> availableCommandsDict, int echoCommandIndex, ToDoUser user)
         {
             Console.Write("Вам доступны команды: ");
 
@@ -361,7 +452,7 @@ namespace Interactive_Menu
                     Console.Write(item.Value);
                 }
             }
-            if (!string.IsNullOrEmpty(userName))
+            if (!string.IsNullOrEmpty(user.TelegramUserName))
                 Console.WriteLine($", {availableCommandsDict[echoCommandIndex]}");
             else
                 Console.WriteLine();
@@ -370,12 +461,12 @@ namespace Interactive_Menu
         /// <summary>
         /// Метод выводит на консоль имя пользователя, если оно задано.
         /// </summary>
-        /// <param name="userName">Текущее имя пользователя</param>
-        static void PrintUserName(string userName)
+        /// <param name="user">Пользователь</param>
+        static void PrintUserName(ToDoUser user)
         {
-            if (!string.IsNullOrEmpty(userName))
+            if (!string.IsNullOrEmpty(user.TelegramUserName))
             {
-                Console.Write($"{userName}, ");
+                Console.Write($"{user.TelegramUserName}, ");
             }
         }
 
@@ -395,12 +486,12 @@ namespace Interactive_Menu
                         SetTaskCountLimit(out _taskCountLimit, _minTaskCountLimit, _maxTaskCountLimit);
                     if (_taskLengthLimit == 0)
                         SetTaskLengthLimit(out _taskLengthLimit, _minTaskLengthLimit, _maxTaskLengthLimit);
-                    PrintUserName(_userName);
-                    PrintCommands(_availableCommandsDict, _echoCommandIndex, _userName);
+                    PrintUserName(_user);
+                    PrintCommands(_availableCommandsDict, _echoCommandIndex, _user);
                     var inputString = Console.ReadLine();
                     ValidateString(inputString);
-                    int commandNum = DefineCommandNum(inputString, _availableCommandsDict);
-                    ExecuteCommand(commandNum, inputString, _availableCommandsDict, _echoCommandIndex, ref _userName, _tasks, _taskCountLimit, _taskLengthLimit);
+                    int commandNum = DefineCommandNum(inputString, _availableCommandsDict, _echoCommandIndex, _completetaskCommandIndex);
+                    ExecuteCommand(commandNum, inputString, _availableCommandsDict, _echoCommandIndex, _tasks, _taskCountLimit, _taskLengthLimit, ref _user);
                 }
                 catch (ArgumentException Ex)
                 {
