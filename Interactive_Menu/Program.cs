@@ -71,6 +71,9 @@ namespace Interactive_Menu
             _minTaskCountLimit = 1;
             _maxTaskCountLimit = 100;
             _minTaskLengthLimit = 1;
+
+
+
             _maxTaskLengthLimit = 100;
         }
 
