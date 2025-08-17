@@ -6,6 +6,10 @@ namespace Otus.ToDoList.ConsoleBot;
 /// </summary>
 public class ConsoleBotClient : ITelegramBotClient
 {
+    // Здесь расположен главный класс, симулирующий работу сервера Telegram'а:
+
+
+
     private readonly Chat _chat;
     private readonly User _user;
 
@@ -22,7 +26,7 @@ public class ConsoleBotClient : ITelegramBotClient
         if (_chat.Id != chat.Id)
             throw new ArgumentException($"Invalid chat.Id. Support {_chat.Id}, but was {chat.Id}");
 
-        WriteLineColor($"Бот: {text}", ConsoleColor.Blue);
+        WriteLineColor($"Бот: {text}, Чат: {_chat.Id}, Username: {_user.Username}, UserId: {_user.Id}", ConsoleColor.Blue);
     }
 
     public void StartReceiving(IUpdateHandler handler)

@@ -6,25 +6,22 @@ using System.Threading.Tasks;
 
 namespace Interactive_Menu
 {
-    //  Добавить класс ToDoUser
-    //  Свойства
-    //      Guid UserId //Заполняется в конструкторе. Guid.NewGuid()
-    //      string TelegramUserName //Имя пользователя, которое он указал (готовим шаблон для телеграм бота)
-    //      DateTime RegisteredAt //Заполняется в конструкторе. DateTime.UtcNow
-    //  У класса должен быть один конструктор с аргументом string telegramUserName
-    //  Добавить использование класса ToDoUser для сохранения информации о пользователе вместо хранения только имени.
-
-    internal class ToDoUser
+    /// <summary>
+    ///  Класс пользователя ToDo
+    /// </summary>
+     internal class ToDoUser
     {
+        public long TelegramUserId { get; set; }
         public Guid UserId { get; }
         public string TelegramUserName { get; set; }
         public DateTime RegisteredAt { get; }
 
-        public ToDoUser(string telegramUserName)
+        public ToDoUser(string telegramUserName, long telegramUserId)
         {
             UserId = Guid.NewGuid();
             TelegramUserName = telegramUserName;
             RegisteredAt = DateTime.UtcNow;
+            TelegramUserId = telegramUserId;
         }
     }
 }
