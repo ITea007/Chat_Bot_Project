@@ -9,28 +9,18 @@ namespace Interactive_Menu
 {
     internal class UserService : IUserService
     {
-        //Заполнять telegramUserId и telegramUserName нужно из значений Update.Message.From 
-        //В конструкторе??
-
-        private long _telegramUserId;
-        private string _telegramUserName;
-
-
-        public UserService(User user ) 
-        {
-            //как?
-        }
-
+        private static List<ToDoUser> _users = new List<ToDoUser> ();
 
         public ToDoUser? GetUser(long telegramUserId)
         {
-            throw new NotImplementedException();
+            return _users.Where(i => i.TelegramUserId == telegramUserId).FirstOrDefault();
         }
 
         public ToDoUser RegisterUser(long telegramUserId, string telegramUserName)
         {
-            return new ToDoUser(telegramUserName, telegramUserId);
-
+            var user = new ToDoUser(telegramUserId, telegramUserName);
+            _users.Add(user);
+            return user;
         }
     }
 }

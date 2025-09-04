@@ -26,7 +26,7 @@ public class ConsoleBotClient : ITelegramBotClient
         if (_chat.Id != chat.Id)
             throw new ArgumentException($"Invalid chat.Id. Support {_chat.Id}, but was {chat.Id}");
 
-        WriteLineColor($"Бот: {text}, Чат: {_chat.Id}, Username: {_user.Username}, UserId: {_user.Id}", ConsoleColor.Blue);
+        WriteLineColor($"Бот: {text}", ConsoleColor.Blue);//, Чат: {_chat.Id}, Username: {_user.Username}, UserId: {_user.Id}
     }
 
     public void StartReceiving(IUpdateHandler handler)

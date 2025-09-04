@@ -8,11 +8,11 @@ namespace Interactive_Menu
 {
     internal class ToDoItem
     {
-        public Guid Id { get; } //Заполняется в конструкторе. Guid.NewGuid()
+        public Guid Id { get; }
         public ToDoUser User { get; set; }
         public string Name { get; set; }
-        public DateTime CreatedAt { get; }//Заполняется в конструкторе. DateTime.UtcNow
-        public ToDoItemState State { get; set; }//Заполняется в конструкторе. ToDoItemState.Active
+        public DateTime CreatedAt { get; }
+        public ToDoItemState State { get; set; }
         public DateTime? StateChangedAt { get; set; }
 
         public ToDoItem(ToDoUser user, string name)

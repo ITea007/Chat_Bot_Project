@@ -16,7 +16,7 @@ namespace Interactive_Menu
         public string TelegramUserName { get; set; }
         public DateTime RegisteredAt { get; }
 
-        public ToDoUser(string telegramUserName, long telegramUserId)
+        public ToDoUser(long telegramUserId, string telegramUserName)
         {
             UserId = Guid.NewGuid();
             TelegramUserName = telegramUserName;
