@@ -10,22 +10,21 @@ namespace Interactive_Menu.Infrastructure.DataAccess
 {
     internal class InMemoryUserRepository : IUserRepository
     {
-        //В качестве хранилища использовать List
-
+        private static List<ToDoUser> _users = new List<ToDoUser>();
 
         public void Add(ToDoUser user)
         {
-            throw new NotImplementedException();
+            _users.Add(user);
         }
 
         public ToDoUser? GetUser(Guid userId)
         {
-            throw new NotImplementedException();
+            return _users.Where(i => i.UserId == userId).FirstOrDefault();
         }
 
         public ToDoUser? GetUserByTelegramUserId(long telegramUserId)
         {
-            throw new NotImplementedException();
+            return _users.Where(i => i.TelegramUserId == telegramUserId).FirstOrDefault();
         }
     }
 }
