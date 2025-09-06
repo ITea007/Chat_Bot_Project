@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Interactive_Menu
+namespace Interactive_Menu.Core.Entities
 {
     internal enum ToDoItemState
     {

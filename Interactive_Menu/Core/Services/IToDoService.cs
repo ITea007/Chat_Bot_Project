@@ -1,10 +1,11 @@
-﻿using System;
+﻿using Interactive_Menu.Core.Entities;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Interactive_Menu
+namespace Interactive_Menu.Core.Services
 {
 
     /// <summary>
@@ -12,6 +13,9 @@ namespace Interactive_Menu
     /// </summary>
     internal interface IToDoService
     {
+        //Метод возвращает все задачи пользователя, которые начинаются на namePrefix. Для этого нужно использовать метод IToDoRepository.Find
+        IReadOnlyList<ToDoItem> Find(ToDoUser user, string namePrefix);
+
         IReadOnlyList<ToDoItem> GetAllByUserId(Guid userId);
         /// <summary>
         /// Возвращает ToDoItem для UserId со статусом Active

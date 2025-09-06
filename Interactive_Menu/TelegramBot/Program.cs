@@ -3,8 +3,11 @@ using Otus.ToDoList.ConsoleBot.Types;
 using System;
 using System.ComponentModel;
 using System.Text;
+using Interactive_Menu;
+using Interactive_Menu.Infrastructure.DataAccess;
+using Interactive_Menu.Core.Services;
 
-namespace Interactive_Menu
+namespace Interactive_Menu.TelegramBot
 {
     internal class Program
     {
@@ -18,12 +21,15 @@ namespace Interactive_Menu
             {
                 Console.InputEncoding = Encoding.GetEncoding("UTF-16");
 
-                    var botClient = new ConsoleBotClient();
-                    var userService = new UserService();
-                    var toDoService = new ToDoService();
-                    var handler = new UpdateHandler(botClient, userService, toDoService);
-                    
-                    botClient.StartReceiving(handler);
+                var botClient = new ConsoleBotClient();
+                var userRepository = new InMemoryUserRepository();
+                var userService = new UserService(userRepository);
+                var toDoRepository = new InMemoryToDoRepository();
+                var toDoService = new ToDoService(toDoRepository);
+                var toDoReportService = new ToDoReportService();
+                var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService);
+
+                botClient.StartReceiving(handler);
             }
             catch (Exception Ex)
             {

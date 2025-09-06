@@ -1,4 +1,6 @@
-﻿using Otus.ToDoList.ConsoleBot;
+﻿using Interactive_Menu.Core.Entities;
+using Interactive_Menu.Core.Services;
+using Otus.ToDoList.ConsoleBot;
 using Otus.ToDoList.ConsoleBot.Types;
 using System;
 using System.Collections.Generic;
@@ -7,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
-namespace Interactive_Menu
+namespace Interactive_Menu.TelegramBot
 {
     /// <summary>
     /// UpdateHandler отвечает за обработку обновлений.
@@ -16,6 +18,8 @@ namespace Interactive_Menu
     {
         private IUserService _userService;
         private IToDoService _toDoService;
+        private IToDoReportService _toDoReportService;
+
         private bool _isAllCommandsAvailable = false;
         private bool _isTaskCountLimitSet = true;
         private bool _isTaskLengthLimitSet = true;
@@ -23,13 +27,14 @@ namespace Interactive_Menu
                     { 1, "/start" }, { 2, "/help" },
                     { 3, "/info" }, { 4, "/exit" }, { 5, "/addtask"},
                     { 6, "/showtasks"}, { 7, "/removetask"}, { 8, "/showalltasks"},
-                    { 9, "/completetask"}
+                    { 9, "/completetask"}, { 10, "/report"}
                 };
 
-        public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService)
+        public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService, IToDoReportService toDoReportService)
         {
             _userService = userService;
             _toDoService = toDoService;
+            _toDoReportService = toDoReportService;
         }
 
         public void HandleUpdateAsync(ITelegramBotClient botClient, Update update)
@@ -83,6 +88,8 @@ namespace Interactive_Menu
                     case "/removetask": OnRemoveTaskCommand(botClient, update); break;
                     case "/showalltasks": OnShowAllTasksCommand(botClient, update); break;
                     case "/completetask": OnCompleteTaskCommand(botClient, update); break;
+                    case "/report": OnReportCommand(botClient, update); break; 
+                    case "/find": OnFindCommand(botClient, update); break;
                     default: botClient.SendMessage(update.Message.Chat, "Ошибка обработки команды."); break;
                 }
             } else
@@ -97,6 +104,27 @@ namespace Interactive_Menu
                 }
             }
         }
+
+
+        //Добавить метод IReadOnlyList<ToDoItem> Find(ToDoUser user, string namePrefix); в интерфейс IToDoService.Метод должен возвращать все задачи пользователя, которые начинаются на namePrefix.Для этого нужно использовать метод IToDoRepository.Find
+        //Добавить обработку новой команды /find.
+        //Пример команды: /find Имя
+        //Вывод в консоль должен быть как в /showtask
+        private void OnFindCommand(ITelegramBotClient botClient, Update update)
+        {
+            throw new NotImplementedException();
+        }
+
+        //Добавить обработку новой команды /report.Нужно использовать IToDoReportService
+        //Пример вывода: Статистика по задачам на 01.01.2025 00:00:00. Всего: 10; Завершенных: 7; Активных: 3;
+        private void OnReportCommand(ITelegramBotClient botClient, Update update)
+        {
+            throw new NotImplementedException();
+        }
+
+
+
+
 
         private void OnCompleteTaskCommand(ITelegramBotClient botClient, Update update)
         {
@@ -160,7 +188,7 @@ namespace Interactive_Menu
 
             StringBuilder outputBuilder = new StringBuilder();
 
-            if ((tasksList.Count == 0) || (!tasksList.Any(i => i.State == ToDoItemState.Active)))
+            if (tasksList.Count == 0 || !tasksList.Any(i => i.State == ToDoItemState.Active))
                 outputBuilder.AppendLine("Список текущих задач пуст");
             else
             {
@@ -196,6 +224,8 @@ namespace Interactive_Menu
         {
             StringBuilder outputBuilder = new StringBuilder();
             outputBuilder.AppendLine("\r\n" +
+                                "*  Текущая версия программы 6.0.  Дата создания 06-09-2025\r\n" +
+                                "   Реализована команда /report, /find (ДЗ 7) \r\n" +
                                 "*  Текущая версия программы 5.0.  Дата создания 02-09-2025\r\n" +
                                 "   Удалена команда /echo, реализовна эмуляция работы с ботом (ДЗ 6) \r\n" +
                                 "*  Текущая версия программы 4.0.  Дата создания 28-07-2025\r\n" +
@@ -213,12 +243,15 @@ namespace Interactive_Menu
         private void OnHelpCommand(ITelegramBotClient botClient, Update update)
         {
             StringBuilder outputBuilder = new StringBuilder();
-            outputBuilder.AppendLine("Cправка по программе:\r\nКоманда /start: Если пользователь вводит команду /start, программа просит его ввести своё имя." +
+            outputBuilder.AppendLine("Cправка по программе:\r\nКоманда /start: Регистрация нового пользователя в программе." +
                 "\r\nКоманда /help: Отображает краткую справочную информацию о том, как пользоваться программой." +
                 "\r\nКоманда /info: Предоставляет информацию о версии программы и дате её создания." +
+                "\r\nКоманда /report: Отображает краткую статистику по текущим задачам." +
+                "\r\nКоманда /find: Отображает все задачи пользователя, которые начинаются на заданное слово. Например, команда /find Имя веведет все " +
+                "команды, начинающиеся на Имя" +
                 "\r\nКоманда /addtask: После ввода команды добавьте описание задачи. После добавления задачи выводится сообщение, что задача добавлена." +
-                $"\r\n\tМаксимальная длина задачи:{((_toDoService.TaskLengthLimit == -1) ? "не задано" : _toDoService.TaskLengthLimit)}" +
-                $"\r\n\tМаксимальное количество задач:{((_toDoService.TaskCountLimit == -1) ? "не задано" : _toDoService.TaskCountLimit)}" +
+                $"\r\n\tМаксимальная длина задачи:{(_toDoService.TaskLengthLimit == -1 ? "не задано" : _toDoService.TaskLengthLimit)}" +
+                $"\r\n\tМаксимальное количество задач:{(_toDoService.TaskCountLimit == -1 ? "не задано" : _toDoService.TaskCountLimit)}" +
                 "\r\nКоманда /showtasks: После ввода команды отображается список всех активных задач." +
                 "\r\nКоманда /showalltasks: После ввода команды отображается список всех задач." +
                 "\r\nКоманда /removetask: После ввода команды отображается список задач с номерами. Введите номер задачи для её удаления." +

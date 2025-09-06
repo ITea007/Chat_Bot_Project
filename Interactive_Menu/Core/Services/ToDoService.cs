@@ -1,10 +1,13 @@
-﻿using System;
+﻿using Interactive_Menu.Core.DataAccess;
+using Interactive_Menu.Core.Entities;
+using Interactive_Menu.Core.Exceptions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Interactive_Menu
+namespace Interactive_Menu.Core.Services
 {
     /// <summary>
     /// Логика работы с задачами
@@ -12,6 +15,9 @@ namespace Interactive_Menu
     internal class ToDoService : IToDoService
     {
         private readonly List<ToDoItem> _tasks = new List<ToDoItem>();
+        private IToDoRepository _toDoRepository;
+
+
 
         /// <summary>
         /// Заданное максимальное количество задач
@@ -37,6 +43,11 @@ namespace Interactive_Menu
         /// Максимально допустимая длина строки описания задачи
         /// </summary>
         public int MaxTaskLengthLimit { get; } = 100;
+
+        public ToDoService(IToDoRepository toDoRepository) {
+            _toDoRepository = toDoRepository;
+        }
+
 
         public ToDoItem Add(ToDoUser user, string name)
         {
@@ -71,7 +82,11 @@ namespace Interactive_Menu
                 task.State = ToDoItemState.Completed;
         }
 
-
-
+        public IReadOnlyList<ToDoItem> Find(ToDoUser user, string namePrefix)
+        {
+            ////Метод возвращает все задачи пользователя, которые начинаются на namePrefix. 
+            ///Для этого нужно использовать метод IToDoRepository.Find
+            throw new NotImplementedException();
+        }
     }
 }
