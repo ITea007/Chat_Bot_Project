@@ -15,7 +15,7 @@ namespace Interactive_Menu
     internal class UpdateHandler : IUpdateHandler
     {
         private IUserService _userService;
-        private IToDoService _toDoService;
+        private ToDoService _toDoService;
         private bool _isAllCommandsAvailable = false;
         private bool _isTaskCountLimitSet = true;
         private bool _isTaskLengthLimitSet = true;
@@ -29,7 +29,7 @@ namespace Interactive_Menu
         public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService)
         {
             _userService = userService;
-            _toDoService = toDoService;
+            _toDoService = (ToDoService)toDoService;
         }
 
         public void HandleUpdateAsync(ITelegramBotClient botClient, Update update)
@@ -117,12 +117,9 @@ namespace Interactive_Menu
             Guid userId = new Guid();
 
             if (_userService.GetUser(update.Message.From.Id) != null)
-            { 
-
-            userId = _userService.GetUser(update.Message.From.Id).UserId;
-            }
+                userId = _userService.GetUser(update.Message.From.Id).UserId;
             
-                var tasksList = _toDoService.GetAllByUserId(userId);
+            var tasksList = _toDoService.GetAllByUserId(userId);
             
             StringBuilder outputBuilder = new StringBuilder();
 
