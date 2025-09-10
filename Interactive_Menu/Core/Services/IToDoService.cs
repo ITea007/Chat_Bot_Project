@@ -27,12 +27,12 @@ namespace Interactive_Menu.Core.Services
         void MarkAsCompleted(Guid id);
         void Delete(Guid id);
 
-        public int TaskCountLimit { get; set; }
-        public int TaskLengthLimit { get; set; }
-        public int MinTaskCountLimit { get; }
-        public int MaxTaskCountLimit { get; }
-        public int MinTaskLengthLimit { get; }
-        public int MaxTaskLengthLimit { get; }
+        //public int TaskCountLimit { get; set; }
+        //public int TaskLengthLimit { get; set; }
+        //public int MinTaskCountLimit { get; }
+        //public int MaxTaskCountLimit { get; }
+        //public int MinTaskLengthLimit { get; }
+        //public int MaxTaskLengthLimit { get; }
     }
 
 }

@@ -17,23 +17,13 @@ namespace Interactive_Menu.TelegramBot
     internal class UpdateHandler : IUpdateHandler
     {
         private IUserService _userService;
-        private IToDoService _toDoService;
+        private ToDoService _toDoService;
         private IToDoReportService _toDoReportService;
-
-        private bool _isAllCommandsAvailable = false;
-        private bool _isTaskCountLimitSet = true;
-        private bool _isTaskLengthLimitSet = true;
-        private Dictionary<int, string> _commands = new Dictionary<int, string> {
-                    { 1, "/start" }, { 2, "/help" },
-                    { 3, "/info" }, { 4, "/exit" }, { 5, "/addtask"},
-                    { 6, "/showtasks"}, { 7, "/removetask"}, { 8, "/showalltasks"},
-                    { 9, "/completetask"}, { 10, "/report"}
-                };
 
         public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService, IToDoReportService toDoReportService)
         {
             _userService = userService;
-            _toDoService = toDoService;
+            _toDoService = (ToDoService)toDoService;
             _toDoReportService = toDoReportService;
         }
 
@@ -46,14 +36,14 @@ namespace Interactive_Menu.TelegramBot
                 var command = update.Message.Text.Trim().ToLower(); // Получаем текст сообщения
                 var trimmedCommand = command.Split(' ', 2)[0];
 
-                if (_commands.ContainsValue(trimmedCommand) && _isTaskCountLimitSet && _isTaskLengthLimitSet)
+                if (_toDoService._commands.ContainsValue(trimmedCommand) && _toDoService._isTaskCountLimitSet && _toDoService._isTaskLengthLimitSet)
                 {
                     ExecuteCommand(botClient, update, trimmedCommand); // Переходим к выполнению соответствующей команды
                 }
-                else if (!_isTaskCountLimitSet)
+                else if (!_toDoService._isTaskCountLimitSet)
                 {
                     SetTaskCountLimit(botClient, update, trimmedCommand);
-                } else if (!_isTaskLengthLimitSet)
+                } else if (!_toDoService._isTaskLengthLimitSet)
                 {
                     SetTaskLengthLimit(botClient, update, trimmedCommand);
                 }
@@ -75,7 +65,7 @@ namespace Interactive_Menu.TelegramBot
 
         private void ExecuteCommand(ITelegramBotClient botClient, Update update, string command)
         {
-            if (_isAllCommandsAvailable)
+            if (_toDoService._isAllCommandsAvailable)
             {
                 switch (command)
                 {
@@ -243,22 +233,27 @@ namespace Interactive_Menu.TelegramBot
         private void OnHelpCommand(ITelegramBotClient botClient, Update update)
         {
             StringBuilder outputBuilder = new StringBuilder();
-            outputBuilder.AppendLine("Cправка по программе:\r\nКоманда /start: Регистрация нового пользователя в программе." +
-                "\r\nКоманда /help: Отображает краткую справочную информацию о том, как пользоваться программой." +
+            outputBuilder.AppendLine(
+                "Cправка по программе:" +
+                "\r\nКоманда /start: Регистрация нового пользователя в программе." +
+                "\r\nКоманда /help: Отображает краткую справочную информацию о том, как пользоваться программой. Отображается описание доступных команд." +
                 "\r\nКоманда /info: Предоставляет информацию о версии программы и дате её создания." +
-                "\r\nКоманда /report: Отображает краткую статистику по текущим задачам." +
-                "\r\nКоманда /find: Отображает все задачи пользователя, которые начинаются на заданное слово. Например, команда /find Имя веведет все " +
-                "команды, начинающиеся на Имя" +
-                "\r\nКоманда /addtask: После ввода команды добавьте описание задачи. После добавления задачи выводится сообщение, что задача добавлена." +
-                $"\r\n\tМаксимальная длина задачи:{(_toDoService.TaskLengthLimit == -1 ? "не задано" : _toDoService.TaskLengthLimit)}" +
-                $"\r\n\tМаксимальное количество задач:{(_toDoService.TaskCountLimit == -1 ? "не задано" : _toDoService.TaskCountLimit)}" +
-                "\r\nКоманда /showtasks: После ввода команды отображается список всех активных задач." +
-                "\r\nКоманда /showalltasks: После ввода команды отображается список всех задач." +
-                "\r\nКоманда /removetask: После ввода команды отображается список задач с номерами. Введите номер задачи для её удаления." +
-                "\r\nКоманда /completetask: Используется для завершения задачи. При вводе этой команды с номером задачи " +
-                "\r\n(например, /completetask 0167b785-b830-4d02-b82a-881b0b678034), программа завершает задачу, её статус станосится Completed." +
-                "\r\nКоманда /exit: Завершить программу." +
-                "\r\nВводите команды строчными буквами для корректной работы приложения.\r\n");
+                "\r\nКоманда /exit: Завершить программу."
+            );
+            if (_toDoService._isAllCommandsAvailable == true)
+                outputBuilder.AppendLine(
+                    "\r\nКоманда /report: Отображает краткую статистику по текущим задачам." +
+                    "\r\nКоманда /find: Отображает все задачи пользователя, которые начинаются на заданное слово. Например, команда /find Имя веведет все " +
+                    "команды, начинающиеся на Имя" +
+                    "\r\nКоманда /addtask: После ввода команды добавьте описание задачи. После добавления задачи выводится сообщение, что задача добавлена." +
+                    $"\r\n\tМаксимальная длина задачи:{(_toDoService.TaskLengthLimit == -1 ? "не задано" : _toDoService.TaskLengthLimit)}" +
+                    $"\r\n\tМаксимальное количество задач:{(_toDoService.TaskCountLimit == -1 ? "не задано" : _toDoService.TaskCountLimit)}" +
+                    "\r\nКоманда /showtasks: После ввода команды отображается список всех активных задач." +
+                    "\r\nКоманда /showalltasks: После ввода команды отображается список всех задач." +
+                    "\r\nКоманда /removetask: После ввода команды отображается список задач с номерами. Введите номер задачи для её удаления." +
+                    "\r\nКоманда /completetask: Используется для завершения задачи. При вводе этой команды с номером задачи " +
+                    "\r\n(например, /completetask 0167b785-b830-4d02-b82a-881b0b678034), программа завершает задачу, её статус станосится Completed."
+            );
 
             botClient.SendMessage(update.Message.Chat, outputBuilder.ToString());
         }
@@ -269,7 +264,7 @@ namespace Interactive_Menu.TelegramBot
 
             if (_userService.GetUser(update.Message.From.Id) != null)
             {
-                _isAllCommandsAvailable = true;
+                _toDoService._isAllCommandsAvailable = true;
                 botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}");
             }
             else
@@ -278,14 +273,19 @@ namespace Interactive_Menu.TelegramBot
                 {
                     _userService.RegisterUser(update.Message.From.Id, update.Message.From.Username);
                     botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}");
-                    _isAllCommandsAvailable = true;
+                    _toDoService._isAllCommandsAvailable = true;
                 }
             }
-            if (_toDoService.TaskCountLimit == -1)
-                _isTaskCountLimitSet = false;
+            
             if (_toDoService.TaskLengthLimit == -1)
-                _isTaskLengthLimitSet = false;
-            botClient.SendMessage(update.Message.Chat, $"{update.Message.From.Username}, введи максимальное количество задач от {_toDoService.MinTaskCountLimit} до {_toDoService.MaxTaskCountLimit}");
+                _toDoService._isTaskLengthLimitSet = false;
+            if (_toDoService.TaskCountLimit == -1)
+            {
+                _toDoService._isTaskCountLimitSet = false;
+                botClient.SendMessage(update.Message.Chat, $"{update.Message.From.Username}, " +
+                    $"введи максимальное количество задач от {_toDoService.MinTaskCountLimit} до {_toDoService.MaxTaskCountLimit}");
+            }
+                
         }
 
         /// <summary>
@@ -294,7 +294,7 @@ namespace Interactive_Menu.TelegramBot
         private void SetTaskCountLimit(ITelegramBotClient botClient, Update update, string command)
         {
             _toDoService.TaskCountLimit = ParseAndValidateInt(command, _toDoService.MinTaskCountLimit, _toDoService.MaxTaskCountLimit);
-            _isTaskCountLimitSet = true;
+            _toDoService._isTaskCountLimitSet = true;
             botClient.SendMessage(update.Message.Chat, $"{update.Message.From.Username}, установлено максимальное количество задач: {_toDoService.TaskCountLimit}");
 
             botClient.SendMessage(update.Message.Chat, $"{update.Message.From.Username}, введи максимальную длину задачи от {_toDoService.MinTaskLengthLimit} до {_toDoService.MaxTaskLengthLimit}");
@@ -306,7 +306,7 @@ namespace Interactive_Menu.TelegramBot
         private void SetTaskLengthLimit(ITelegramBotClient botClient, Update update, string command)
         {
             _toDoService.TaskLengthLimit = ParseAndValidateInt(command, _toDoService.MinTaskLengthLimit, _toDoService.MaxTaskLengthLimit);
-            _isTaskLengthLimitSet = true;
+            _toDoService._isTaskLengthLimitSet = true;
             botClient.SendMessage(update.Message.Chat, $"{update.Message.From.Username}, установлена максимальная длина задачи: {_toDoService.TaskLengthLimit}");
 
         }
