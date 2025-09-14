@@ -95,55 +95,69 @@ namespace Interactive_Menu.TelegramBot
             }
         }
 
-
-        //Добавить метод IReadOnlyList<ToDoItem> Find(ToDoUser user, string namePrefix); в интерфейс IToDoService.Метод должен возвращать все задачи пользователя, которые начинаются на namePrefix.Для этого нужно использовать метод IToDoRepository.Find
-        //Добавить обработку новой команды /find.
-        //Пример команды: /find Имя
-        //Вывод в консоль должен быть как в /showtask
+        /// <summary>
+        /// Метод возвращает все задачи пользователя, которые начинаются на namePrefix. Обработку команды /find. 
+        ///Пример команды: /find Имя
+        /// </summary>
+        /// <param name="botClient"></param>
+        /// <param name="update"></param>
         private void OnFindCommand(ITelegramBotClient botClient, Update update)
         {
-            throw new NotImplementedException();
+            var task = update.Message.Text.Trim();
+            string namePrefix = task.Remove(0, "/find".Length).Trim();
+            ToDoUser user = _userService.GetUser(update.Message.From.Id);
+            if (user != null)
+            {
+                var tasksList = _toDoService.Find(user, namePrefix);
+                StringBuilder outputBuilder = new StringBuilder();
+                if (tasksList.Count == 0 || !tasksList.Any(i => i.State == ToDoItemState.Active))
+                    outputBuilder.AppendLine($"Нет задач, начинающихся на {namePrefix}");
+                else
+                {
+                    outputBuilder.AppendLine($"Задачи, начинающиеся на {namePrefix}");
+                    for (int i = 0; i < tasksList.Count; i++)
+                        outputBuilder.AppendLine($"Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - {tasksList[i].Id}");
+                }
+                botClient.SendMessage(update.Message.Chat, outputBuilder.ToString());
+            }
         }
 
-        //Добавить обработку новой команды /report.Нужно использовать IToDoReportService
-        //Пример вывода: Статистика по задачам на 01.01.2025 00:00:00. Всего: 10; Завершенных: 7; Активных: 3;
+        /// <summary>
+        /// Обработка команды /report.Используется IToDoReportService. Пример вывода: 
+        /// Статистика по задачам на 01.01.2025 00:00:00. Всего: 10; Завершенных: 7; Активных: 3;
+        /// </summary>
+        /// <param name="botClient"></param>
+        /// <param name="update"></param>
         private void OnReportCommand(ITelegramBotClient botClient, Update update)
         {
-            throw new NotImplementedException();
+            var user = _userService.GetUser(update.Message.From.Id);
+            if (user != null)
+            {
+                var result = _toDoReportService.GetUserStats(user.UserId);
+                botClient.SendMessage(update.Message.Chat,
+                    $"Статистика по задачам на {result.generatedAt}. Всего: {result.total}; Завершенных: {result.completed}; Активных: {result.active};");
+            }
         }
-
-
-
-
 
         private void OnCompleteTaskCommand(ITelegramBotClient botClient, Update update)
         {
-            botClient.SendMessage(update.Message.Chat, "OnCompleteTaskCommand.");
-
             var task = update.Message.Text.Trim();
             task = task.Remove(0, "/completetask".Length).Trim();
             Guid taskId = new Guid(task);
             _toDoService.MarkAsCompleted(taskId);
 
-            botClient.SendMessage(update.Message.Chat, $"Задача {taskId} выполнена");
+            botClient.SendMessage(update.Message.Chat, $"Статус задачи {taskId} изменен");
         }
 
         private void OnShowAllTasksCommand(ITelegramBotClient botClient, Update update)
         {
-            botClient.SendMessage(update.Message.Chat, "OnShowAllTasksCommand.");
-
             Guid userId = new Guid();
-
             if (_userService.GetUser(update.Message.From.Id) != null)
-            { 
-
-            userId = _userService.GetUser(update.Message.From.Id).UserId;
+            {
+                userId = _userService.GetUser(update.Message.From.Id).UserId;
             }
-            
-                var tasksList = _toDoService.GetAllByUserId(userId);
-            
+            var tasksList = _toDoService.GetAllByUserId(userId);
             StringBuilder outputBuilder = new StringBuilder();
-
             if (tasksList.Count == 0)
                 outputBuilder.AppendLine("Список задач пуст");
             else
@@ -153,13 +167,10 @@ namespace Interactive_Menu.TelegramBot
                     outputBuilder.AppendLine($"({tasksList[i].State}) Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - {tasksList[i].Id}");
             }
             botClient.SendMessage(update.Message.Chat, outputBuilder.ToString());
-            
         }
 
         private void OnRemoveTaskCommand(ITelegramBotClient botClient, Update update)
         {
-            botClient.SendMessage(update.Message.Chat, "OnRemoveTaskCommand.");
-
             var task = update.Message.Text.Trim();
             task = task.Remove(0, "/removetask".Length).Trim();
             Guid taskId = new Guid(task);
@@ -171,8 +182,6 @@ namespace Interactive_Menu.TelegramBot
 
         private void OnShowTasksCommand(ITelegramBotClient botClient, Update update)
         {
-            botClient.SendMessage(update.Message.Chat, "OnShowTasksCommand.");
-
             Guid userId = _userService.GetUser(update.Message.From.Id).UserId;
             var tasksList = _toDoService.GetActiveByUserId(userId);
 
@@ -192,7 +201,6 @@ namespace Interactive_Menu.TelegramBot
 
         private void OnAddTaskCommand(ITelegramBotClient botClient, Update update)
         {
-            botClient.SendMessage(update.Message.Chat, "OnAddTaskCommand.");
             var user = _userService.GetUser(update.Message.From.Id);
             var task = update.Message.Text.Trim();
             task = task.Remove(0, "/addtask".Length).Trim();
@@ -201,8 +209,6 @@ namespace Interactive_Menu.TelegramBot
                 _toDoService.Add(user, task);
                 botClient.SendMessage(update.Message.Chat, $"Добавлена задача {task}");
             }
-
-
         }
 
         private void OnExitCommand(ITelegramBotClient botClient, Update update)
@@ -233,9 +239,9 @@ namespace Interactive_Menu.TelegramBot
         private void OnHelpCommand(ITelegramBotClient botClient, Update update)
         {
             StringBuilder outputBuilder = new StringBuilder();
-            outputBuilder.AppendLine(
+            outputBuilder.Append(
                 "Cправка по программе:" +
-                "\r\nКоманда /start: Регистрация нового пользователя в программе." +
+                "\r\nКоманда /start: Регистрация нового пользователя в программе. После регистрации будут доступны основные команды." +
                 "\r\nКоманда /help: Отображает краткую справочную информацию о том, как пользоваться программой. Отображается описание доступных команд." +
                 "\r\nКоманда /info: Предоставляет информацию о версии программы и дате её создания." +
                 "\r\nКоманда /exit: Завершить программу."
@@ -252,7 +258,7 @@ namespace Interactive_Menu.TelegramBot
                     "\r\nКоманда /showalltasks: После ввода команды отображается список всех задач." +
                     "\r\nКоманда /removetask: После ввода команды отображается список задач с номерами. Введите номер задачи для её удаления." +
                     "\r\nКоманда /completetask: Используется для завершения задачи. При вводе этой команды с номером задачи " +
-                    "\r\n(например, /completetask 0167b785-b830-4d02-b82a-881b0b678034), программа завершает задачу, её статус станосится Completed."
+                    "\r\n(например, /completetask 0167b785-b830-4d02-b82a-881b0b678034), программа завершает задачу, её статус становится Completed."
             );
 
             botClient.SendMessage(update.Message.Chat, outputBuilder.ToString());
@@ -260,8 +266,6 @@ namespace Interactive_Menu.TelegramBot
 
         private void OnStartCommand(ITelegramBotClient botClient, Update update)
         {
-            botClient.SendMessage(update.Message.Chat, "OnStartCommand.");
-
             if (_userService.GetUser(update.Message.From.Id) != null)
             {
                 _toDoService._isAllCommandsAvailable = true;
@@ -284,8 +288,7 @@ namespace Interactive_Menu.TelegramBot
                 _toDoService._isTaskCountLimitSet = false;
                 botClient.SendMessage(update.Message.Chat, $"{update.Message.From.Username}, " +
                     $"введи максимальное количество задач от {_toDoService.MinTaskCountLimit} до {_toDoService.MaxTaskCountLimit}");
-            }
-                
+            }    
         }
 
         /// <summary>
@@ -308,7 +311,6 @@ namespace Interactive_Menu.TelegramBot
             _toDoService.TaskLengthLimit = ParseAndValidateInt(command, _toDoService.MinTaskLengthLimit, _toDoService.MaxTaskLengthLimit);
             _toDoService._isTaskLengthLimitSet = true;
             botClient.SendMessage(update.Message.Chat, $"{update.Message.From.Username}, установлена максимальная длина задачи: {_toDoService.TaskLengthLimit}");
-
         }
 
         /// <summary>
@@ -330,7 +332,6 @@ namespace Interactive_Menu.TelegramBot
                 throw new ArgumentException($"Значение должно быть в диапазоне от {min} до {max}");
         }
     }
-
 }
 
 

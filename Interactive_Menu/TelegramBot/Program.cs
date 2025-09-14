@@ -11,7 +11,6 @@ namespace Interactive_Menu.TelegramBot
 {
     internal class Program
     {
-
         /// <summary>
         /// Точка запуска программы. Создаём клиента, сервисы, начинаем получать и обрабатывать сообщения.
         /// </summary>
@@ -26,7 +25,7 @@ namespace Interactive_Menu.TelegramBot
                 var userService = new UserService(userRepository);
                 var toDoRepository = new InMemoryToDoRepository();
                 var toDoService = new ToDoService(toDoRepository);
-                var toDoReportService = new ToDoReportService();
+                var toDoReportService = new ToDoReportService(toDoService);
                 var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService);
 
                 botClient.StartReceiving(handler);
@@ -40,5 +39,6 @@ namespace Interactive_Menu.TelegramBot
                 Console.WriteLine($"Внутреннее исключение: {Ex.InnerException}");
             }
         }
+
     }
 }

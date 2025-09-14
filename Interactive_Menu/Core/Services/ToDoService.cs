@@ -14,7 +14,7 @@ namespace Interactive_Menu.Core.Services
     /// </summary>
     internal class ToDoService : IToDoService
     {
-        private readonly List<ToDoItem> _tasks = new List<ToDoItem>();
+        
         private IToDoRepository _toDoRepository;
 
         /// <summary>
@@ -50,58 +50,56 @@ namespace Interactive_Menu.Core.Services
                     { 1, "/start" }, { 2, "/help" },
                     { 3, "/info" }, { 4, "/exit" }, { 5, "/addtask"},
                     { 6, "/showtasks"}, { 7, "/removetask"}, { 8, "/showalltasks"},
-                    { 9, "/completetask"}, { 10, "/report"}
+                    { 9, "/completetask"}, { 10, "/report"}, { 11, "/find"}
                 };
 
         public ToDoService(IToDoRepository toDoRepository) {
             _toDoRepository = toDoRepository;
-            //TaskCountLimit = -1;
-            //MinTaskCountLimit = 1;
-            //MaxTaskCountLimit = 100;
-            //TaskLengthLimit = -1;
-            //MinTaskLengthLimit = 1;
-            //MaxTaskLengthLimit = 100;
         }
 
 
         public ToDoItem Add(ToDoUser user, string name)
         {
-            if (_tasks.Count == TaskCountLimit) throw new TaskCountLimitException(TaskCountLimit);
+            if (_toDoRepository.GetAllByUserId(user.UserId).Count == TaskCountLimit) throw new TaskCountLimitException(TaskCountLimit);
             if (name.Length > TaskLengthLimit) throw new TaskLengthLimitException(name.Length, TaskLengthLimit);
-            if (_tasks.Where(i => i.Name == name).Count() > 0) throw new DuplicateTaskException(name);
+            if (_toDoRepository.ExistsByName(user.UserId,name)) throw new DuplicateTaskException(name);
 
             var task = new ToDoItem(user, name);
-            _tasks.Add(task);
+            _toDoRepository.Add(task);
             return task;
         }
 
         public void Delete(Guid id)
         {
-            _tasks.RemoveAll(i => i.Id == id);
+            _toDoRepository.Delete(id);
         }
 
         public IReadOnlyList<ToDoItem> GetActiveByUserId(Guid userId)
         {
-            return _tasks.Where(i => i.User.UserId == userId && i.State == ToDoItemState.Active).ToList();
+            return _toDoRepository.GetActiveByUserId(userId);
         }
 
         public IReadOnlyList<ToDoItem> GetAllByUserId(Guid userId)
         {
-            return _tasks.Where(i => i.User.UserId == userId).ToList();
+            return _toDoRepository.GetAllByUserId(userId);
         }
 
         public void MarkAsCompleted(Guid id)
         {
-            var task = _tasks.FirstOrDefault(i => i.Id == id);
-            if (task != null)
-                task.State = ToDoItemState.Completed;
+            var toDoItemById = _toDoRepository.Get(id);
+            if (toDoItemById != null)
+                _toDoRepository.Update(toDoItemById);
         }
 
+        /// <summary>
+        /// Метод возвращает все задачи пользователя, которые начинаются на namePrefix.
+        /// </summary>
+        /// <param name="user"></param>
+        /// <param name="namePrefix"></param>
+        /// <returns></returns>
         public IReadOnlyList<ToDoItem> Find(ToDoUser user, string namePrefix)
         {
-            ////Метод возвращает все задачи пользователя, которые начинаются на namePrefix. 
-            ///Для этого нужно использовать метод IToDoRepository.Find
-            throw new NotImplementedException();
+            return _toDoRepository.Find(user.UserId,item => item.Name.StartsWith(namePrefix));
         }
     }
 }
