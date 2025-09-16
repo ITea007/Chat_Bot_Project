@@ -12,7 +12,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
     {
         private static List<ToDoUser> _users = new List<ToDoUser>();
 
-        public void Add(ToDoUser user)
+        public Task Add(ToDoUser user, CancellationToken ct)
         {
             _users.Add(user);
         }
@@ -22,9 +22,19 @@ namespace Interactive_Menu.Infrastructure.DataAccess
             return _users.Where(i => i.UserId == userId).FirstOrDefault();
         }
 
+        public Task<ToDoUser?> GetUser(Guid userId, CancellationToken ct)
+        {
+            throw new NotImplementedException();
+        }
+
         public ToDoUser? GetUserByTelegramUserId(long telegramUserId)
         {
             return _users.Where(i => i.TelegramUserId == telegramUserId).FirstOrDefault();
+        }
+
+        public Task<ToDoUser?> GetUserByTelegramUserId(long telegramUserId, CancellationToken ct)
+        {
+            throw new NotImplementedException();
         }
     }
 }

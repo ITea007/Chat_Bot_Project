@@ -24,11 +24,21 @@ namespace Interactive_Menu.Core.Services
             return _userRepository.GetUserByTelegramUserId(telegramUserId);       
         }
 
+        public Task<ToDoUser?> GetUser(long telegramUserId, CancellationToken ct)
+        {
+            throw new NotImplementedException();
+        }
+
         public ToDoUser RegisterUser(long telegramUserId, string telegramUserName)
         {
             var user = new ToDoUser(telegramUserId, telegramUserName);
             _userRepository.Add(user);
             return user;
+        }
+
+        public Task<ToDoUser> RegisterUser(long telegramUserId, string telegramUserName, CancellationToken ct)
+        {
+            throw new NotImplementedException();
         }
     }
 }
