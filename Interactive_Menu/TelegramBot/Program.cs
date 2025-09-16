@@ -19,7 +19,8 @@ namespace Interactive_Menu.TelegramBot
             try
             {
                 Console.InputEncoding = Encoding.GetEncoding("UTF-16");
-                var ct = new CancellationToken();
+                var cts = new CancellationTokenSource();
+                var ct = cts.Token;
 
                 var botClient = new ConsoleBotClient();
                 var userRepository = new InMemoryUserRepository();

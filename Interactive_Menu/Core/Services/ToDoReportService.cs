@@ -11,15 +11,15 @@ namespace Interactive_Menu.Core.Services
     {
         private IToDoService _toDoService;
 
-        public ToDoReportService(IToDoService repository)
+        public ToDoReportService(IToDoService toDoService)
         { 
-            _toDoService = repository;
+            _toDoService = toDoService;
         }
 
-        public (int total, int completed, int active, DateTime generatedAt) GetUserStats(Guid userId)
+        public async Task<(int total, int completed, int active, DateTime generatedAt)> GetUserStats(Guid userId, CancellationToken ct)
         {
-            int total = _toDoService.GetAllByUserId(userId).Count;
-            int active = _toDoService.GetActiveByUserId(userId).Count;
+            int total = _toDoService.GetAllByUserId(userId, ct).Count;
+            int active = _toDoService.GetActiveByUserId(userId, ct).Count;
             int completed = total - active;
             return (total, completed, active, DateTime.UtcNow);
 

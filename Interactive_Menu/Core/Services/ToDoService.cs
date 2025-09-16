@@ -42,16 +42,7 @@ namespace Interactive_Menu.Core.Services
         /// </summary>
         public int MaxTaskLengthLimit { get; } = 100;
 
-        public bool _isAllCommandsAvailable { get; set; } = false;
-        public bool _isTaskCountLimitSet { get; set; } = true;
-        public bool _isTaskLengthLimitSet { get; set; } = true;
 
-        public Dictionary<int, string> _commands { get; } = new Dictionary<int, string> {
-                    { 1, "/start" }, { 2, "/help" },
-                    { 3, "/info" }, { 4, "/exit" }, { 5, "/addtask"},
-                    { 6, "/showtasks"}, { 7, "/removetask"}, { 8, "/showalltasks"},
-                    { 9, "/completetask"}, { 10, "/report"}, { 11, "/find"}
-                };
 
         public ToDoService(IToDoRepository toDoRepository) {
             _toDoRepository = toDoRepository;
@@ -74,7 +65,7 @@ namespace Interactive_Menu.Core.Services
             _toDoRepository.Delete(id);
         }
 
-        public IReadOnlyList<ToDoItem> GetActiveByUserId(Guid userId)
+        public async IReadOnlyList<ToDoItem> GetActiveByUserId(Guid userId, CancellationToken ct)
         {
             return _toDoRepository.GetActiveByUserId(userId);
         }
