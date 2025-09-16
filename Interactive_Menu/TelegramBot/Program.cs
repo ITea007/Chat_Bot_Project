@@ -19,6 +19,7 @@ namespace Interactive_Menu.TelegramBot
             try
             {
                 Console.InputEncoding = Encoding.GetEncoding("UTF-16");
+                var ct = new CancellationToken();
 
                 var botClient = new ConsoleBotClient();
                 var userRepository = new InMemoryUserRepository();
@@ -28,7 +29,7 @@ namespace Interactive_Menu.TelegramBot
                 var toDoReportService = new ToDoReportService(toDoService);
                 var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService);
 
-                botClient.StartReceiving(handler);
+                botClient.StartReceiving(handler, ct);
             }
             catch (Exception Ex)
             {
