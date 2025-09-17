@@ -19,26 +19,16 @@ namespace Interactive_Menu.Core.Services
             _userRepository = userRepository;
         }
 
-        public ToDoUser? GetUser(long telegramUserId)
-        {
-            return _userRepository.GetUserByTelegramUserId(telegramUserId);       
-        }
-
         public Task<ToDoUser?> GetUser(long telegramUserId, CancellationToken ct)
         {
-            throw new NotImplementedException();
+            return _userRepository.GetUserByTelegramUserId(telegramUserId, ct);
         }
 
-        public ToDoUser RegisterUser(long telegramUserId, string telegramUserName)
+        public async Task<ToDoUser> RegisterUser(long telegramUserId, string telegramUserName, CancellationToken ct)
         {
             var user = new ToDoUser(telegramUserId, telegramUserName);
-            _userRepository.Add(user);
-            return user;
-        }
-
-        public Task<ToDoUser> RegisterUser(long telegramUserId, string telegramUserName, CancellationToken ct)
-        {
-            throw new NotImplementedException();
+            await _userRepository.Add(user, ct);
+            return user;  
         }
     }
 }

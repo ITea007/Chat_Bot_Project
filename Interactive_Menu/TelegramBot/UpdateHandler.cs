@@ -223,9 +223,10 @@ namespace Interactive_Menu.TelegramBot
             }
         }
 
-        private async Task OnExitCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
+        private static Task OnExitCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
             Environment.Exit(0);
+            return Task.CompletedTask;
         }
 
         private async Task OnInfoCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)

@@ -48,18 +48,19 @@ namespace Interactive_Menu.Infrastructure.DataAccess
 
         public Task<ToDoItem?> Get(Guid id, CancellationToken ct)
         {
-            return Task.FromResult(_tasks.FirstOrDefault(i => i.Id == id));
+            var toDoItem = _tasks.FirstOrDefault(i => i.Id == id);
+            return Task.FromResult(toDoItem);
         }
 
         public Task<IReadOnlyList<ToDoItem>> GetActiveByUserId(Guid userId, CancellationToken ct)
         {
-            var list = _tasks.Where(i => i.User.UserId == userId && i.State == ToDoItemState.Active).ToList();
+            var list = _tasks.Where(i => i.User.UserId == userId && i.State == ToDoItemState.Active).ToList().AsReadOnly();
             return Task.FromResult<IReadOnlyList<ToDoItem>>(list);
         }
 
         public Task<IReadOnlyList<ToDoItem>> GetAllByUserId(Guid userId, CancellationToken ct)
         {
-            var list = _tasks.Where(i => i.User.UserId == userId).ToList();
+            var list = _tasks.Where(i => i.User.UserId == userId).ToList().AsReadOnly();
             return Task.FromResult<IReadOnlyList<ToDoItem>>(list);
         }
 

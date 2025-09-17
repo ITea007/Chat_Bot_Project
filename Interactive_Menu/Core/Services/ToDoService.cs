@@ -42,55 +42,49 @@ namespace Interactive_Menu.Core.Services
         /// </summary>
         public int MaxTaskLengthLimit { get; } = 100;
 
-
-
-        public ToDoService(IToDoRepository toDoRepository) {
+        public ToDoService(IToDoRepository toDoRepository) 
+        {
             _toDoRepository = toDoRepository;
         }
 
-
-        public ToDoItem Add(ToDoUser user, string name)
+        public async Task<IReadOnlyList<ToDoItem>> GetActiveByUserId(Guid userId, CancellationToken ct)
         {
-            if (_toDoRepository.GetAllByUserId(user.UserId).Count == TaskCountLimit) throw new TaskCountLimitException(TaskCountLimit);
+            return await _toDoRepository.GetActiveByUserId(userId, ct);
+        }
+
+        public Task<IReadOnlyList<ToDoItem>> Find(ToDoUser user, string namePrefix, CancellationToken ct)
+        {
+            return _toDoRepository.Find(user.UserId, item => item.Name.StartsWith(namePrefix), ct);
+        }
+
+        public async Task<IReadOnlyList<ToDoItem>> GetAllByUserId(Guid userId, CancellationToken ct)
+        {
+            var list =  await _toDoRepository.GetAllByUserId(userId, ct);
+            return list;
+        }
+
+        public async Task<ToDoItem> Add(ToDoUser user, string name, CancellationToken ct)
+        {
+            var listAll = await _toDoRepository.GetAllByUserId(user.UserId, ct);
+            if (listAll.Count == TaskCountLimit) throw new TaskCountLimitException(TaskCountLimit);
             if (name.Length > TaskLengthLimit) throw new TaskLengthLimitException(name.Length, TaskLengthLimit);
-            if (_toDoRepository.ExistsByName(user.UserId,name)) throw new DuplicateTaskException(name);
+            if (await _toDoRepository.ExistsByName(user.UserId, name, ct)) throw new DuplicateTaskException(name);
 
             var task = new ToDoItem(user, name);
-            _toDoRepository.Add(task);
+            await _toDoRepository.Add(task, ct);
             return task;
         }
 
-        public void Delete(Guid id)
+        public async Task MarkAsCompleted(Guid id, CancellationToken ct)
         {
-            _toDoRepository.Delete(id);
-        }
-
-        public async IReadOnlyList<ToDoItem> GetActiveByUserId(Guid userId, CancellationToken ct)
-        {
-            return _toDoRepository.GetActiveByUserId(userId);
-        }
-
-        public IReadOnlyList<ToDoItem> GetAllByUserId(Guid userId)
-        {
-            return _toDoRepository.GetAllByUserId(userId);
-        }
-
-        public void MarkAsCompleted(Guid id)
-        {
-            var toDoItemById = _toDoRepository.Get(id);
+            var toDoItemById = await _toDoRepository.Get(id, ct);
             if (toDoItemById != null)
-                _toDoRepository.Update(toDoItemById);
+                await _toDoRepository.Update(toDoItemById, ct);
         }
 
-        /// <summary>
-        /// Метод возвращает все задачи пользователя, которые начинаются на namePrefix.
-        /// </summary>
-        /// <param name="user"></param>
-        /// <param name="namePrefix"></param>
-        /// <returns></returns>
-        public IReadOnlyList<ToDoItem> Find(ToDoUser user, string namePrefix)
+        public Task Delete(Guid id, CancellationToken ct)
         {
-            return _toDoRepository.Find(user.UserId,item => item.Name.StartsWith(namePrefix));
+            return _toDoRepository.Delete(id,ct);
         }
     }
 }
