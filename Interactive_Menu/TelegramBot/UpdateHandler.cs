@@ -239,6 +239,8 @@ namespace Interactive_Menu.TelegramBot
         {
             StringBuilder outputBuilder = new StringBuilder();
             outputBuilder.AppendLine("\r\n" +
+                                "*  Текущая версия программы 7.0.  Дата создания 16-09-2025\r\n" +
+                                "   Реализовано асинхронное выполнение (ДЗ 8) \r\n" +
                                 "*  Текущая версия программы 6.0.  Дата создания 06-09-2025\r\n" +
                                 "   Реализована команда /report, /find (ДЗ 7) \r\n" +
                                 "*  Текущая версия программы 5.0.  Дата создания 02-09-2025\r\n" +
