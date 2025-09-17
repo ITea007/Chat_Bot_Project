@@ -15,26 +15,17 @@ namespace Interactive_Menu.Infrastructure.DataAccess
         public Task Add(ToDoUser user, CancellationToken ct)
         {
             _users.Add(user);
-        }
-
-        public ToDoUser? GetUser(Guid userId)
-        {
-            return _users.Where(i => i.UserId == userId).FirstOrDefault();
+            return Task.CompletedTask;
         }
 
         public Task<ToDoUser?> GetUser(Guid userId, CancellationToken ct)
         {
-            throw new NotImplementedException();
-        }
-
-        public ToDoUser? GetUserByTelegramUserId(long telegramUserId)
-        {
-            return _users.Where(i => i.TelegramUserId == telegramUserId).FirstOrDefault();
+            return Task.FromResult(_users.Where(i => i.UserId == userId).FirstOrDefault());
         }
 
         public Task<ToDoUser?> GetUserByTelegramUserId(long telegramUserId, CancellationToken ct)
         {
-            throw new NotImplementedException();
+            return Task.FromResult(_users.Where(i => i.TelegramUserId == telegramUserId).FirstOrDefault());
         }
     }
 }
