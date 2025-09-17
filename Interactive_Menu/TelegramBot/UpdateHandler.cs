@@ -116,10 +116,10 @@ namespace Interactive_Menu.TelegramBot
         {
             var task = update.Message.Text.Trim();
             string namePrefix = task.Remove(0, "/find".Length).Trim();
-            ToDoUser user = _userService.GetUser(update.Message.From.Id);
+            var user = await _userService.GetUser(update.Message.From.Id, ct);
             if (user != null)
             {
-                var tasksList = _toDoService.Find(user, namePrefix);
+                var tasksList = await _toDoService.Find(user, namePrefix, ct);
                 StringBuilder outputBuilder = new StringBuilder();
                 if (tasksList.Count == 0 || !tasksList.Any(i => i.State == ToDoItemState.Active))
                     outputBuilder.AppendLine($"Нет задач, начинающихся на {namePrefix}");
@@ -141,10 +141,10 @@ namespace Interactive_Menu.TelegramBot
         /// <param name="update"></param>
         private async Task OnReportCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            var user = _userService.GetUser(update.Message.From.Id);
+            var user = await _userService.GetUser(update.Message.From.Id, ct);
             if (user != null)
             {
-                var result = _toDoReportService.GetUserStats(user.UserId);
+                var result = await _toDoReportService.GetUserStats(user.UserId, ct);
                 await botClient.SendMessage(update.Message.Chat,
                     $"Статистика по задачам на {result.generatedAt}. " +
                     $"Всего: {result.total}; Завершенных: {result.completed}; Активных: {result.active};", ct);
@@ -156,7 +156,7 @@ namespace Interactive_Menu.TelegramBot
             var task = update.Message.Text.Trim();
             task = task.Remove(0, "/completetask".Length).Trim();
             Guid taskId = new Guid(task);
-            _toDoService.MarkAsCompleted(taskId);
+            await _toDoService.MarkAsCompleted(taskId, ct);
 
             await botClient.SendMessage(update.Message.Chat, $"Статус задачи {taskId} изменен", ct);
         }
@@ -164,21 +164,23 @@ namespace Interactive_Menu.TelegramBot
         private async Task OnShowAllTasksCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
             Guid userId = new Guid();
-            if (_userService.GetUser(update.Message.From.Id) != null)
+            var user = await _userService.GetUser(update.Message.From.Id, ct);
+            if (user != null)
             {
-                userId = _userService.GetUser(update.Message.From.Id).UserId;
+                userId = user.UserId;
+                var tasksList = await _toDoService.GetAllByUserId(userId, ct);
+                StringBuilder outputBuilder = new StringBuilder();
+                if (tasksList.Count == 0)
+                    outputBuilder.AppendLine("Список задач пуст");
+                else
+                {
+                    outputBuilder.AppendLine("Список всех задач:");
+                    for (int i = 0; i < tasksList.Count; i++)
+                        outputBuilder.AppendLine($"({tasksList[i].State}) Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - {tasksList[i].Id}");
+                }
+                await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), ct);
             }
-            var tasksList = _toDoService.GetAllByUserId(userId);
-            StringBuilder outputBuilder = new StringBuilder();
-            if (tasksList.Count == 0)
-                outputBuilder.AppendLine("Список задач пуст");
-            else
-            {
-                outputBuilder.AppendLine("Список всех задач:");
-                for (int i = 0; i < tasksList.Count; i++)
-                    outputBuilder.AppendLine($"({tasksList[i].State}) Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - {tasksList[i].Id}");
-            }
-            await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), ct);
+
         }
 
         private async Task OnRemoveTaskCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
@@ -186,7 +188,7 @@ namespace Interactive_Menu.TelegramBot
             var task = update.Message.Text.Trim();
             task = task.Remove(0, "/removetask".Length).Trim();
             Guid taskId = new Guid(task);
-            _toDoService.Delete(taskId);
+            await _toDoService.Delete(taskId, ct);
 
             await botClient.SendMessage(update.Message.Chat, $"Задача {taskId} удалена", ct);
 
@@ -194,31 +196,35 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnShowTasksCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            Guid userId = _userService.GetUser(update.Message.From.Id).UserId;
-            var tasksList = _toDoService.GetActiveByUserId(userId);
-
-            StringBuilder outputBuilder = new StringBuilder();
-
-            if (tasksList.Count == 0 || !tasksList.Any(i => i.State == ToDoItemState.Active))
-                outputBuilder.AppendLine("Список текущих задач пуст");
-            else
+            var user = await _userService.GetUser(update.Message.From.Id, ct);
+            if (user != null)
             {
-                outputBuilder.AppendLine("Список текущих задач:");
-                for (int i = 0; i < tasksList.Count; i++)
-                    if (tasksList[i].State == ToDoItemState.Active)
-                        outputBuilder.AppendLine($"Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - {tasksList[i].Id}");
+                var userId = user.UserId;
+                var tasksList = await _toDoService.GetActiveByUserId(userId, ct);
+
+                StringBuilder outputBuilder = new StringBuilder();
+
+                if (tasksList.Count == 0 || !tasksList.Any(i => i.State == ToDoItemState.Active))
+                    outputBuilder.AppendLine("Список текущих задач пуст");
+                else
+                {
+                    outputBuilder.AppendLine("Список текущих задач:");
+                    for (int i = 0; i < tasksList.Count; i++)
+                        if (tasksList[i].State == ToDoItemState.Active)
+                            outputBuilder.AppendLine($"Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - {tasksList[i].Id}");
+                }
+                await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), ct);
             }
-            await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), ct);
         }
 
         private async Task OnAddTaskCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            var user = _userService.GetUser(update.Message.From.Id);
+            var user = await _userService.GetUser(update.Message.From.Id, ct);
             var task = update.Message.Text.Trim();
             task = task.Remove(0, "/addtask".Length).Trim();
             if (user != null)
             {
-                _toDoService.Add(user, task);
+                await _toDoService.Add(user, task, ct);
                 await botClient.SendMessage(update.Message.Chat, $"Добавлена задача {task}", ct);
             }
         }
@@ -279,7 +285,7 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnStartCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (_userService.GetUser(update.Message.From.Id) != null)
+            if (await _userService.GetUser(update.Message.From.Id, ct) != null)
             {
                 _isAllCommandsAvailable = true;
                 await botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}", ct);
@@ -288,7 +294,7 @@ namespace Interactive_Menu.TelegramBot
             {
                 if (update.Message.From.Username != null)
                 {
-                    _userService.RegisterUser(update.Message.From.Id, update.Message.From.Username);
+                    await _userService.RegisterUser(update.Message.From.Id, update.Message.From.Username, ct);
                     await botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}", ct);
                     _isAllCommandsAvailable = true;
                 }
