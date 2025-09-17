@@ -1,0 +1,27 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace Interactive_Menu.Core.Entities
+{
+    internal class ToDoItem
+    {
+        public Guid Id { get; }
+        public ToDoUser User { get; set; }
+        public string Name { get; set; }
+        public DateTime CreatedAt { get; }
+        public ToDoItemState State { get; set; }
+        public DateTime? StateChangedAt { get; set; }
+
+        public ToDoItem(ToDoUser user, string name)
+        {
+            User = user;
+            Name = name;
+            CreatedAt = DateTime.UtcNow;
+            State = ToDoItemState.Active;
+            Id = Guid.NewGuid();
+        }
+    }
+}
