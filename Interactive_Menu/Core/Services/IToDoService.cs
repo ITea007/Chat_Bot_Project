@@ -14,25 +14,19 @@ namespace Interactive_Menu.Core.Services
     internal interface IToDoService
     {
         //Метод возвращает все задачи пользователя, которые начинаются на namePrefix. Для этого нужно использовать метод IToDoRepository.Find
-        IReadOnlyList<ToDoItem> Find(ToDoUser user, string namePrefix);
+        Task<IReadOnlyList<ToDoItem>> Find(ToDoUser user, string namePrefix, CancellationToken ct);
 
-        IReadOnlyList<ToDoItem> GetAllByUserId(Guid userId);
+        Task<IReadOnlyList<ToDoItem>> GetAllByUserId(Guid userId, CancellationToken ct);
         /// <summary>
         /// Возвращает ToDoItem для UserId со статусом Active
         /// </summary>
         /// <param name="userId">User id</param>
         /// <returns></returns>
-        IReadOnlyList<ToDoItem> GetActiveByUserId(Guid userId);
-        ToDoItem Add(ToDoUser user, string name);
-        void MarkAsCompleted(Guid id);
-        void Delete(Guid id);
+        Task<IReadOnlyList<ToDoItem>> GetActiveByUserId(Guid userId, CancellationToken ct);
+        Task<ToDoItem> Add(ToDoUser user, string name, CancellationToken ct);
+        Task MarkAsCompleted(Guid id, CancellationToken ct);
+        Task Delete(Guid id, CancellationToken ct);
 
-        //public int TaskCountLimit { get; set; }
-        //public int TaskLengthLimit { get; set; }
-        //public int MinTaskCountLimit { get; }
-        //public int MaxTaskCountLimit { get; }
-        //public int MinTaskLengthLimit { get; }
-        //public int MaxTaskLengthLimit { get; }
     }
 
 }
