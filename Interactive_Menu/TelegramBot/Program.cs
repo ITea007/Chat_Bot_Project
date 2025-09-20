@@ -16,20 +16,21 @@ namespace Interactive_Menu.TelegramBot
         /// </summary>
         public static void Main()
         {
+            var cts = new CancellationTokenSource();
+            var ct = cts.Token;
+            var botClient = new ConsoleBotClient();
+            var userRepository = new InMemoryUserRepository();
+            var userService = new UserService(userRepository);
+            var toDoRepository = new InMemoryToDoRepository();
+            var toDoService = new ToDoService(toDoRepository);
+            var toDoReportService = new ToDoReportService(toDoService);
+            var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService);
+            handler.OnHandleEventStarted += (message) => { Console.WriteLine($"Началась обработка сообщения '{message}'"); };
+            handler.OnHandleEventCompleted += (message) => { Console.WriteLine($"Закончилась обработка сообщения '{message}'"); };
+
             try
             {
                 Console.InputEncoding = Encoding.GetEncoding("UTF-16");
-                var cts = new CancellationTokenSource();
-                var ct = cts.Token;
-
-                var botClient = new ConsoleBotClient();
-                var userRepository = new InMemoryUserRepository();
-                var userService = new UserService(userRepository);
-                var toDoRepository = new InMemoryToDoRepository();
-                var toDoService = new ToDoService(toDoRepository);
-                var toDoReportService = new ToDoReportService(toDoService);
-                var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService);
-
                 botClient.StartReceiving(handler, ct);
             }
             catch (Exception Ex)
@@ -40,7 +41,14 @@ namespace Interactive_Menu.TelegramBot
                 Console.WriteLine($"Трассировка стека: {Ex.StackTrace}");
                 Console.WriteLine($"Внутреннее исключение: {Ex.InnerException}");
             }
+            finally
+            {
+                handler.OnHandleEventStarted -= (message) => { Console.WriteLine($"Началась обработка сообщения '{message}'"); };
+                handler.OnHandleEventCompleted -= (message) => { Console.WriteLine($"Закончилась обработка сообщения '{message}'"); };
+            }
         }
 
     }
+
+
 }

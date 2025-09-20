@@ -21,6 +21,10 @@ namespace Interactive_Menu.TelegramBot
         private ToDoService _toDoService;
         private IToDoReportService _toDoReportService;
 
+        public delegate void MessageEventHandler(string message);
+        public event MessageEventHandler OnHandleEventStarted;
+        public event MessageEventHandler OnHandleEventCompleted;
+
         private bool _isAllCommandsAvailable { get; set; } = false;
         private bool _isTaskCountLimitSet { get; set; } = true;
         private bool _isTaskLengthLimitSet { get; set; } = true;
@@ -42,6 +46,7 @@ namespace Interactive_Menu.TelegramBot
         {
             try
             {
+                OnHandleEventStarted?.Invoke(update.Message.Text);
                 await botClient.SendMessage(update.Message.Chat, $"Получил '{update.Message.Text}'", ct);
 
                 var command = update.Message.Text.Trim().ToLower(); // Получаем текст сообщения
@@ -58,11 +63,11 @@ namespace Interactive_Menu.TelegramBot
                 {
                     await SetTaskLengthLimit(botClient, update, trimmedCommand, ct);
                 }
-
                 else
                 {
                     await botClient.SendMessage(update.Message.Chat, "Неизвестная команда.", ct);
                 }
+                OnHandleEventCompleted?.Invoke(update.Message.Text);
             }
             catch (Exception Ex)
             {
@@ -252,7 +257,7 @@ namespace Interactive_Menu.TelegramBot
                                 "*  Текущая версия программы 2.0.  Дата создания 16-06-2025\r\n" +
                                 "   Добавлены команды /addtask, /showtasks, /removetask\r\n" +
                                 "*  Версия программы 1.0.  Дата создания 25-05-2025\r\n" +
-                                "   Реализованы команды /start, /help, /info, /echo, /exit\r\n");
+                                "   Реализованы команды /start, /help, /info, /echo, /exit");
 
             await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), ct);
         }
