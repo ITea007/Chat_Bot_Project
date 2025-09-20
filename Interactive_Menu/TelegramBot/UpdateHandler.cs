@@ -22,8 +22,8 @@ namespace Interactive_Menu.TelegramBot
         private IToDoReportService _toDoReportService;
 
         public delegate void MessageEventHandler(string message);
-        public event MessageEventHandler OnHandleEventStarted;
-        public event MessageEventHandler OnHandleEventCompleted;
+        public event MessageEventHandler? OnHandleEventStarted;
+        public event MessageEventHandler? OnHandleEventCompleted;
 
         private bool _isAllCommandsAvailable { get; set; } = false;
         private bool _isTaskCountLimitSet { get; set; } = true;
