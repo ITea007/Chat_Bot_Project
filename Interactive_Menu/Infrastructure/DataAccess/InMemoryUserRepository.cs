@@ -12,19 +12,20 @@ namespace Interactive_Menu.Infrastructure.DataAccess
     {
         private static List<ToDoUser> _users = new List<ToDoUser>();
 
-        public void Add(ToDoUser user)
+        public Task Add(ToDoUser user, CancellationToken ct)
         {
             _users.Add(user);
+            return Task.CompletedTask;
         }
 
-        public ToDoUser? GetUser(Guid userId)
+        public Task<ToDoUser?> GetUser(Guid userId, CancellationToken ct)
         {
-            return _users.Where(i => i.UserId == userId).FirstOrDefault();
+            return Task.FromResult(_users.Where(i => i.UserId == userId).FirstOrDefault());
         }
 
-        public ToDoUser? GetUserByTelegramUserId(long telegramUserId)
+        public Task<ToDoUser?> GetUserByTelegramUserId(long telegramUserId, CancellationToken ct)
         {
-            return _users.Where(i => i.TelegramUserId == telegramUserId).FirstOrDefault();
+            return Task.FromResult(_users.Where(i => i.TelegramUserId == telegramUserId).FirstOrDefault());
         }
     }
 }

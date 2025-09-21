@@ -4,6 +4,7 @@ using Interactive_Menu.Core.Exceptions;
 using Otus.ToDoList.ConsoleBot.Types;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,59 +17,60 @@ namespace Interactive_Menu.Infrastructure.DataAccess
 
         private readonly List<ToDoItem> _tasks = new List<ToDoItem>();
 
-        public void Add(ToDoItem item)
+        public Task Add(ToDoItem item, CancellationToken ct)
         {
             if (item == null) throw new ArgumentNullException("item");
             _tasks.Add(item);
+            return Task.CompletedTask;
         }
 
-        public int CountActive(Guid userId)
+        public async Task<int> CountActive(Guid userId, CancellationToken ct)
         {
-            return GetActiveByUserId(userId).Count;
+            var activeItems = await GetActiveByUserId(userId, ct);
+            return activeItems.Count;
         }
 
-        public void Delete(Guid id)
+        public Task Delete(Guid id, CancellationToken ct)
         {
-            _tasks.RemoveAll(i => i.Id == id);
+            return Task.FromResult(_tasks.RemoveAll(i => i.Id == id));
         }
 
-        public bool ExistsByName(Guid userId, string name)
+        public Task<bool> ExistsByName(Guid userId, string name, CancellationToken ct)
         {
-            return _tasks.Where(i => i.Name == name).Count() > 0 ? true : false;
+            return Task.FromResult(_tasks.Where(i => i.Name == name).Count() > 0 ? true : false);
         }
 
-        /// <summary>
-        /// Метод возвращает все задачи пользователя, которые удовлетворяют предикату.
-        /// </summary>
-        /// <param name="userId"></param>
-        /// <param name="predicate"></param>
-        /// <returns></returns>
-        public IReadOnlyList<ToDoItem> Find(Guid userId, Func<ToDoItem, bool> predicate)
+        public async Task<IReadOnlyList<ToDoItem>> Find(Guid userId, Func<ToDoItem, bool> predicate, CancellationToken ct)
         {
-            return GetAllByUserId(userId).Where(predicate).ToList();
+            var allItems = await GetAllByUserId(userId, ct);
+            return allItems.Where(predicate).ToList();
         }
 
-        public ToDoItem? Get(Guid id)
+        public Task<ToDoItem?> Get(Guid id, CancellationToken ct)
         {
-            return _tasks.FirstOrDefault(i => i.Id == id);
+            var toDoItem = _tasks.FirstOrDefault(i => i.Id == id);
+            return Task.FromResult(toDoItem);
         }
 
-        public IReadOnlyList<ToDoItem> GetActiveByUserId(Guid userId)
+        public Task<IReadOnlyList<ToDoItem>> GetActiveByUserId(Guid userId, CancellationToken ct)
         {
-            return _tasks.Where(i => i.User.UserId == userId && i.State == ToDoItemState.Active).ToList();
+            var list = _tasks.Where(i => i.User.UserId == userId && i.State == ToDoItemState.Active).ToList().AsReadOnly();
+            return Task.FromResult<IReadOnlyList<ToDoItem>>(list);
         }
 
-        public IReadOnlyList<ToDoItem> GetAllByUserId(Guid userId)
+        public Task<IReadOnlyList<ToDoItem>> GetAllByUserId(Guid userId, CancellationToken ct)
         {
-            return _tasks.Where(i => i.User.UserId == userId).ToList();
+            var list = _tasks.Where(i => i.User.UserId == userId).ToList().AsReadOnly();
+            return Task.FromResult<IReadOnlyList<ToDoItem>>(list);
         }
 
-        public void Update(ToDoItem item)
+        public Task Update(ToDoItem item, CancellationToken ct)
         {
             var task = _tasks.Find(i => i.Equals(item));
-            
+
             if (task != null)
                 task.State = (task.State == ToDoItemState.Active) ? ToDoItemState.Completed : ToDoItemState.Active;
+            return Task.CompletedTask;
         }
     }
 }
