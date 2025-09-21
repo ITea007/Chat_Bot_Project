@@ -1,6 +1,5 @@
 ﻿using Interactive_Menu.Core.DataAccess;
 using Interactive_Menu.Core.Entities;
-using Otus.ToDoList.ConsoleBot.Types;
 using System;
 using System.Collections.Generic;
 using System.Linq;

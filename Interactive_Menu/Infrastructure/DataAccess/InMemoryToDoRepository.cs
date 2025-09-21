@@ -1,7 +1,6 @@
 ﻿using Interactive_Menu.Core.DataAccess;
 using Interactive_Menu.Core.Entities;
 using Interactive_Menu.Core.Exceptions;
-using Otus.ToDoList.ConsoleBot.Types;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
