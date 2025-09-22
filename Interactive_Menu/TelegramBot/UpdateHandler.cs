@@ -29,11 +29,13 @@ namespace Interactive_Menu.TelegramBot
         private bool _isAllCommandsAvailable { get; set; } = false;
         private bool _isTaskCountLimitSet { get; set; } = true;
         private bool _isTaskLengthLimitSet { get; set; } = true;
-        public Dictionary<int, string> _commands { get; } = new Dictionary<int, string> {
-                    { 1, "/start" }, { 2, "/help" },
-                    { 3, "/info" }, { 4, "/exit" }, { 5, "/addtask"},
-                    { 6, "/showtasks"}, { 7, "/removetask"}, { 8, "/showalltasks"},
-                    { 9, "/completetask"}, { 10, "/report"}, { 11, "/find"}
+        public List<BotCommand> Commands { get; } = new List<BotCommand> {
+                    { new BotCommand("/start", "Начинает работу с ботом") }, { new BotCommand("/help", "Показывает справку по командам") },
+                    { new BotCommand("/info", "Показывает информацию по боту") }, { new BotCommand("/addtask", "Добавляет задачу")},
+                    { new BotCommand("/showtasks", "Показывает все активные задачи")}, { new BotCommand("/removetask", "Удаляет задачу")}, 
+                    { new BotCommand("/showalltasks", "Показывает все задачи")},
+                    { new BotCommand("/completetask", "Завершает задачу")}, { new BotCommand("/report", "Выводит отчет по задачам")}, 
+                    { new BotCommand("/find", "Ищет задачу") }
                 };
 
         public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService, IToDoReportService toDoReportService)
@@ -56,7 +58,7 @@ namespace Interactive_Menu.TelegramBot
                     var command = update.Message.Text.Trim().ToLower(); // Получаем текст сообщения
                     var trimmedCommand = command.Split(' ', 2)[0];
 
-                    if (_commands.ContainsValue(trimmedCommand) && _isTaskCountLimitSet && _isTaskLengthLimitSet)
+                    if (Commands.Any(i => i.Command == trimmedCommand) && _isTaskCountLimitSet && _isTaskLengthLimitSet)
                     {
                         await ExecuteCommand(botClient, update, trimmedCommand, ct); // Переходим к выполнению соответствующей команды
                     }

@@ -39,31 +39,19 @@ namespace Interactive_Menu.TelegramBot
             var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService);
             try
             {
+                await botClient.SetMyCommands(handler.Commands, cancellationToken:ct);
                 handler.OnHandleEventStarted += (message) => { Console.WriteLine($"Началась обработка сообщения '{message}'"); };
                 handler.OnHandleEventCompleted += (message) => { Console.WriteLine($"Закончилась обработка сообщения '{message}'"); };
                 botClient.StartReceiving(handler, cancellationToken: ct);
-
-                var ping = await botClient.GetMe();
-                await Console.Out.WriteLineAsync($"Нажмите клавишу A для выхода");
-                var key = Console.ReadKey(intercept: true);
-                if (key.KeyChar == 'a' || key.KeyChar == 'A' || key.KeyChar == 'а' || key.KeyChar == 'А')
-                {
-                    cts.Cancel();
-                    Environment.Exit(0);
-                }
-                else
-                {
-                    await Console.Out.WriteLineAsync($"Telegram bot is alive - {ping.FirstName} - {ping.Username}");
-                }
+                var me = await botClient.GetMe();
                 //Продолжаем ждать нажатие клавиши A для завершения программы
-                var waitForAKeyTask = WaitForAKeyAsync(ct);
+                var waitForAKeyTask = WaitForAKeyAsync(ct, me);
                 await Task.WhenAll(waitForAKeyTask);
                 if (waitForAKeyTask.IsCompletedSuccessfully)
                 {
                     cts.Cancel();
                     Environment.Exit(0);
                 }
-                await Task.Delay(Timeout.Infinite, ct);
             }
             catch (Exception Ex)
             {
@@ -81,8 +69,9 @@ namespace Interactive_Menu.TelegramBot
         }
 
         // Метод для асинхронного ожидания нажатия клавиши A
-        static async Task WaitForAKeyAsync(CancellationToken ct)
+        static async Task WaitForAKeyAsync(CancellationToken ct, User? me)
         {
+            await Console.Out.WriteLineAsync($"Нажмите клавишу A для выхода");
             while (!ct.IsCancellationRequested)
             {
                 if (Console.KeyAvailable)
@@ -90,8 +79,13 @@ namespace Interactive_Menu.TelegramBot
                     var key = Console.ReadKey(intercept: true);
                     if (key.Key == ConsoleKey.A)
                         return;
+                    else
+                    {
+                        await Console.Out.WriteLineAsync($"Telegram bot is alive - {me.Id} - {me.FirstName} - {me.Username}");
+                        await Console.Out.WriteLineAsync($"Нажмите клавишу A для выхода");
+                    }
                 }
-                await Task.Delay(100, ct);
+                await Task.Delay(500, ct);
             }
         }
     }
