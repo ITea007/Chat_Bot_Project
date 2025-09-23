@@ -29,13 +29,18 @@ namespace Interactive_Menu.TelegramBot
 
         private bool _isTaskCountLimitSet { get; set; } = true;
         private bool _isTaskLengthLimitSet { get; set; } = true;
-        public List<BotCommand> Commands { get; } = new List<BotCommand> {
+        public List<BotCommand> CommandsAfterRegistration { get; } = new List<BotCommand> {
                     { new BotCommand("/start", "Начинает работу с ботом") }, { new BotCommand("/help", "Показывает справку по командам") },
                     { new BotCommand("/info", "Показывает информацию по боту") }, { new BotCommand("/addtask", "Добавляет задачу")},
                     { new BotCommand("/showtasks", "Показывает все активные задачи")}, { new BotCommand("/removetask", "Удаляет задачу")}, 
                     { new BotCommand("/showalltasks", "Показывает все задачи")},
                     { new BotCommand("/completetask", "Завершает задачу")}, { new BotCommand("/report", "Выводит отчет по задачам")}, 
                     { new BotCommand("/find", "Ищет задачу") }
+                };
+
+        public List<BotCommand> CommandsBeforeRegistration { get; } = new List<BotCommand> {
+                    { new BotCommand("/start", "Начинает работу с ботом") }, { new BotCommand("/help", "Показывает справку по командам") },
+                    { new BotCommand("/info", "Показывает информацию по боту")  }
                 };
 
         public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService, IToDoReportService toDoReportService)
@@ -76,7 +81,7 @@ namespace Interactive_Menu.TelegramBot
                     var command = update.Message.Text.Trim().ToLower(); // Получаем текст сообщения
                     var trimmedCommand = command.Split(' ', 2)[0];
 
-                    if (Commands.Any(i => i.Command == trimmedCommand) && _isTaskCountLimitSet && _isTaskLengthLimitSet)
+                    if (CommandsAfterRegistration.Any(i => i.Command == trimmedCommand) && _isTaskCountLimitSet && _isTaskLengthLimitSet)
                     {
                         await ExecuteCommand(botClient, update, trimmedCommand, ct); // Переходим к выполнению соответствующей команды
 
@@ -166,7 +171,7 @@ namespace Interactive_Menu.TelegramBot
                 {
                     outputBuilder.AppendLine($"Задачи, начинающиеся на {namePrefix}");
                     for (int i = 0; i < tasksList.Count; i++)
-                        outputBuilder.AppendLine($"Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - {tasksList[i].Id}");
+                        outputBuilder.AppendLine($"Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - `{tasksList[i].Id}`");
                 }
                 await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), cancellationToken: ct);
             }
@@ -199,7 +204,7 @@ namespace Interactive_Menu.TelegramBot
             Guid taskId = new Guid(task);
             await _toDoService.MarkAsCompleted(taskId, ct);
 
-            await botClient.SendMessage(update.Message.Chat, $"Статус задачи {taskId} изменен", cancellationToken: ct);
+            await botClient.SendMessage(update.Message.Chat, $"Статус задачи `{taskId}` изменен", cancellationToken: ct);
         }
 
         private async Task OnShowAllTasksCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
@@ -218,7 +223,7 @@ namespace Interactive_Menu.TelegramBot
                 {
                     outputBuilder.AppendLine("Список всех задач:");
                     for (int i = 0; i < tasksList.Count; i++)
-                        outputBuilder.AppendLine($"({tasksList[i].State}) Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - {tasksList[i].Id}");
+                        outputBuilder.AppendLine($"({tasksList[i].State}) Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - `{tasksList[i].Id}`");
                 }
                 await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), cancellationToken: ct);
             }
@@ -231,7 +236,7 @@ namespace Interactive_Menu.TelegramBot
             task = task.Remove(0, "/removetask".Length).Trim();
             Guid taskId = new Guid(task);
             await _toDoService.Delete(taskId, ct);
-            await botClient.SendMessage(update.Message.Chat, $"Задача {taskId} удалена", cancellationToken: ct);
+            await botClient.SendMessage(update.Message.Chat, $"Задача `{taskId}` удалена", cancellationToken: ct);
 
         }
 
@@ -253,7 +258,7 @@ namespace Interactive_Menu.TelegramBot
                     outputBuilder.AppendLine("Список текущих задач:");
                     for (int i = 0; i < tasksList.Count; i++)
                         if (tasksList[i].State == ToDoItemState.Active)
-                            outputBuilder.AppendLine($"Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - {tasksList[i].Id}");
+                            outputBuilder.AppendLine($"Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - `{tasksList[i].Id}`");
                 }
                 await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), cancellationToken: ct);
             }
@@ -345,6 +350,7 @@ namespace Interactive_Menu.TelegramBot
                 {
                     await _userService.RegisterUser(update.Message.From.Id, update.Message.From.Username, ct);
                     await botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}", cancellationToken: ct);
+                    await botClient.SetMyCommands(CommandsAfterRegistration, cancellationToken: ct);
                 }
             }
             

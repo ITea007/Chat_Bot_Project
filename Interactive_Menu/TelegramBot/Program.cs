@@ -3,6 +3,7 @@ using Interactive_Menu.Core.Services;
 using Interactive_Menu.Infrastructure.DataAccess;
 using System;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Telegram.Bot;
@@ -37,7 +38,7 @@ namespace Interactive_Menu.TelegramBot
             var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService);
             try
             {
-                await botClient.SetMyCommands(handler.Commands, cancellationToken:ct);
+                await botClient.SetMyCommands(handler.CommandsBeforeRegistration, cancellationToken:ct);
                 handler.OnHandleEventStarted += (message) => { Console.WriteLine($"Началась обработка сообщения '{message}'"); };
                 handler.OnHandleEventCompleted += (message) => { Console.WriteLine($"Закончилась обработка сообщения '{message}'"); };
                 botClient.StartReceiving(handler, cancellationToken: ct);
