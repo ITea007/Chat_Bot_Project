@@ -1,8 +1,5 @@
 ﻿using Interactive_Menu.Core.Entities;
 using Interactive_Menu.Core.Services;
-using Telegram.Bot;
-using Telegram.Bot.Polling;
-using Telegram.Bot.Types;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,6 +7,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using Telegram.Bot;
+using Telegram.Bot.Polling;
+using Telegram.Bot.Types;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Interactive_Menu.TelegramBot
 {
@@ -26,7 +27,6 @@ namespace Interactive_Menu.TelegramBot
         public event MessageEventHandler? OnHandleEventStarted;
         public event MessageEventHandler? OnHandleEventCompleted;
 
-        private bool _isAllCommandsAvailable { get; set; } = false;
         private bool _isTaskCountLimitSet { get; set; } = true;
         private bool _isTaskLengthLimitSet { get; set; } = true;
         public List<BotCommand> Commands { get; } = new List<BotCommand> {
@@ -45,15 +45,33 @@ namespace Interactive_Menu.TelegramBot
             _toDoReportService = toDoReportService;
         }
 
+        private ReplyKeyboardMarkup _keyboardBeforeRegistration = new ReplyKeyboardMarkup(
+                    new KeyboardButton[] { "/start" })
+        {
+            ResizeKeyboard = true,
+        };
+        private ReplyKeyboardMarkup _keyboardAfterRegistration = new ReplyKeyboardMarkup(
+            new KeyboardButton[] { "/showalltasks", "/showtasks", "/report" })
+        {
+            ResizeKeyboard = true,
+        };
+
         public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
             try
             {
-                if (update.Message is null) throw new ArgumentNullException();
+                if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
+                
+
                 if (update.Message.Text != null)
                 {
                     OnHandleEventStarted?.Invoke(update.Message.Text);
                     await botClient.SendMessage(update.Message.Chat, $"Получил '{update.Message.Text}'", cancellationToken: ct);
+                    var isRegistered = await _userService.GetUser(update.Message.From.Id, ct);
+                     if (update.Message.Text != "/start" && isRegistered == null)
+                    {
+                        await botClient.SendMessage(update.Message.Chat, "Вы не зарегистрированы. Нажмите /start для начала.", replyMarkup: _keyboardBeforeRegistration, cancellationToken: ct);
+                    }
 
                     var command = update.Message.Text.Trim().ToLower(); // Получаем текст сообщения
                     var trimmedCommand = command.Split(' ', 2)[0];
@@ -61,6 +79,7 @@ namespace Interactive_Menu.TelegramBot
                     if (Commands.Any(i => i.Command == trimmedCommand) && _isTaskCountLimitSet && _isTaskLengthLimitSet)
                     {
                         await ExecuteCommand(botClient, update, trimmedCommand, ct); // Переходим к выполнению соответствующей команды
+
                     }
                     else if (!_isTaskCountLimitSet)
                     {
@@ -93,8 +112,8 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task ExecuteCommand(ITelegramBotClient botClient, Update update, string command, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException();
-            if (_isAllCommandsAvailable)
+            if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
+            if (await _userService.GetUser(update.Message.From.Id, ct) != null)
             {
                 switch (command)
                 {
@@ -122,6 +141,7 @@ namespace Interactive_Menu.TelegramBot
                     default: await botClient.SendMessage(update.Message.Chat, "Ошибка обработки команды.", cancellationToken: ct); break;
                 }
             }
+            await botClient.SendMessage(update.Message.Chat, "Выберите команду:", replyMarkup: _keyboardAfterRegistration, cancellationToken: ct);
         }
 
         /// <summary>
@@ -263,6 +283,8 @@ namespace Interactive_Menu.TelegramBot
             if (update.Message is null) throw new ArgumentNullException();
             StringBuilder outputBuilder = new StringBuilder();
             outputBuilder.AppendLine("\r\n" +
+                                "*  Текущая версия программы 8.0.  Дата создания 22-09-2025\r\n" +
+                                "   Реализована работа телеграмм бота (ДЗ 9) \r\n" +
                                 "*  Текущая версия программы 7.0.  Дата создания 16-09-2025\r\n" +
                                 "   Реализовано асинхронное выполнение (ДЗ 8) \r\n" +
                                 "*  Текущая версия программы 6.0.  Дата создания 06-09-2025\r\n" +
@@ -283,16 +305,16 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnHelpCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException();
+            if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
             StringBuilder outputBuilder = new StringBuilder();
             outputBuilder.Append(
                 "Cправка по программе:" +
                 "\r\nКоманда /start: Регистрация нового пользователя в программе. После регистрации будут доступны основные команды." +
                 "\r\nКоманда /help: Отображает краткую справочную информацию о том, как пользоваться программой. Отображается описание доступных команд." +
-                "\r\nКоманда /info: Предоставляет информацию о версии программы и дате её создания." +
-                "\r\nКоманда /exit: Завершить программу."
+                "\r\nКоманда /info: Предоставляет информацию о версии программы и дате её создания." //+
+                //"\r\nКоманда /exit: Завершить программу."
             );
-            if (_isAllCommandsAvailable == true)
+            if (await _userService.GetUser(update.Message.From.Id, ct) != null)
                 outputBuilder.AppendLine(
                     "\r\nКоманда /report: Отображает краткую статистику по текущим задачам." +
                     "\r\nКоманда /find: Отображает все задачи пользователя, которые начинаются на заданное слово. Например, команда /find Имя веведет все " +
@@ -315,8 +337,7 @@ namespace Interactive_Menu.TelegramBot
             if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
             if (await _userService.GetUser(update.Message.From.Id, ct) != null)
             {
-                _isAllCommandsAvailable = true;
-                await botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}", cancellationToken: ct);
+                await botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}. Вы уже зарегистрированы.", cancellationToken: ct);
             }
             else
             {
@@ -324,7 +345,6 @@ namespace Interactive_Menu.TelegramBot
                 {
                     await _userService.RegisterUser(update.Message.From.Id, update.Message.From.Username, ct);
                     await botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}", cancellationToken: ct);
-                    _isAllCommandsAvailable = true;
                 }
             }
             

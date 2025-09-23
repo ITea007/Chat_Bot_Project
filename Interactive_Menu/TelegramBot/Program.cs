@@ -13,8 +13,6 @@ namespace Interactive_Menu.TelegramBot
 {
     internal class Program
     {
-
-
         /// <summary>
         /// Точка запуска программы. Создаём клиента, сервисы, начинаем получать и обрабатывать сообщения.
         /// </summary>
@@ -71,6 +69,7 @@ namespace Interactive_Menu.TelegramBot
         // Метод для асинхронного ожидания нажатия клавиши A
         static async Task WaitForAKeyAsync(CancellationToken ct, User? me)
         {
+
             await Console.Out.WriteLineAsync($"Нажмите клавишу A для выхода");
             while (!ct.IsCancellationRequested)
             {
@@ -81,7 +80,8 @@ namespace Interactive_Menu.TelegramBot
                         return;
                     else
                     {
-                        await Console.Out.WriteLineAsync($"Telegram bot is alive - {me.Id} - {me.FirstName} - {me.Username}");
+                        if (me != null)
+                            await Console.Out.WriteLineAsync($"Telegram bot is alive - {me.Id} - {me.FirstName} - {me.Username}");
                         await Console.Out.WriteLineAsync($"Нажмите клавишу A для выхода");
                     }
                 }
