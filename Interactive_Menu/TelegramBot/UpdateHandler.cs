@@ -285,24 +285,28 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnInfoCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
+            string newlineSymbol = Environment.NewLine;
+
             if (update.Message is null) throw new ArgumentNullException();
             StringBuilder outputBuilder = new StringBuilder();
-            outputBuilder.AppendLine("\r\n" +
-                                "*  Текущая версия программы 8.0.  Дата создания 22-09-2025\r\n" +
-                                "   Реализована работа телеграмм бота (ДЗ 9) \r\n" +
-                                "*  Текущая версия программы 7.0.  Дата создания 16-09-2025\r\n" +
-                                "   Реализовано асинхронное выполнение (ДЗ 8) \r\n" +
-                                "*  Текущая версия программы 6.0.  Дата создания 06-09-2025\r\n" +
-                                "   Реализована команда /report, /find (ДЗ 7) \r\n" +
-                                "*  Текущая версия программы 5.0.  Дата создания 02-09-2025\r\n" +
-                                "   Удалена команда /echo, реализовна эмуляция работы с ботом (ДЗ 6) \r\n" +
-                                "*  Текущая версия программы 4.0.  Дата создания 28-07-2025\r\n" +
-                                "   Добавлены команды /completetask, /showalltasks, изменена логика команды /showtasks(ДЗ 5) \r\n" +
-                                "*  Текущая версия программы 3.0.  Дата создания 19-06-2025\r\n" +
-                                "   Добавлена обработка ошибок через исключения(ДЗ 4) \r\n" +
-                                "*  Текущая версия программы 2.0.  Дата создания 16-06-2025\r\n" +
-                                "   Добавлены команды /addtask, /showtasks, /removetask\r\n" +
-                                "*  Версия программы 1.0.  Дата создания 25-05-2025\r\n" +
+            outputBuilder.AppendLine($"{newlineSymbol}" +
+                                $"*  Текущая версия программы 9.0.  Дата создания 24-09-2025{newlineSymbol}" +
+                                $"   Реализована работа c файлами (ДЗ 10) {newlineSymbol}" +
+                                $"*  Версия программы 8.0.  Дата создания 22-09-2025{newlineSymbol}" +
+                                $"   Реализована работа телеграмм бота (ДЗ 9) {newlineSymbol}" +
+                                $"*  Версия программы 7.0.  Дата создания 16-09-2025{newlineSymbol}" +
+                                $"   Реализовано асинхронное выполнение (ДЗ 8) {newlineSymbol}" +
+                                $"*  Версия программы 6.0.  Дата создания 06-09-2025{newlineSymbol}" +
+                                $"   Реализована команда /report, /find (ДЗ 7) {newlineSymbol}" +
+                                $"*  Версия программы 5.0.  Дата создания 02-09-2025{newlineSymbol}" +
+                                $"   Удалена команда /echo, реализовна эмуляция работы с ботом (ДЗ 6) {newlineSymbol}" +
+                                $"*  Версия программы 4.0.  Дата создания 28-07-2025{newlineSymbol}" +
+                                $"   Добавлены команды /completetask, /showalltasks, изменена логика команды /showtasks (ДЗ 5) {newlineSymbol}" +
+                                $"*  Версия программы 3.0.  Дата создания 19-06-2025{newlineSymbol}" +
+                                $"   Добавлена обработка ошибок через исключения (ДЗ 4) {newlineSymbol}" +
+                                $"*  Версия программы 2.0.  Дата создания 16-06-2025{newlineSymbol}" +
+                                $"   Добавлены команды /addtask, /showtasks, /removetask{newlineSymbol}" +
+                                $"*  Версия программы 1.0.  Дата создания 25-05-2025{newlineSymbol}" +
                                 "   Реализованы команды /start, /help, /info, /echo, /exit");
 
             await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), cancellationToken: ct);
@@ -310,28 +314,29 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnHelpCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
+            string newlineSymbol = Environment.NewLine;
             if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
             StringBuilder outputBuilder = new StringBuilder();
             outputBuilder.Append(
                 "Cправка по программе:" +
-                "\r\nКоманда /start: Регистрация нового пользователя в программе. После регистрации будут доступны основные команды." +
-                "\r\nКоманда /help: Отображает краткую справочную информацию о том, как пользоваться программой. Отображается описание доступных команд." +
-                "\r\nКоманда /info: Предоставляет информацию о версии программы и дате её создания." //+
-                //"\r\nКоманда /exit: Завершить программу."
+                $"{newlineSymbol}Команда /start: Регистрация нового пользователя в программе. После регистрации будут доступны основные команды." +
+                $"{newlineSymbol}Команда /help: Отображает краткую справочную информацию о том, как пользоваться программой. Отображается описание доступных команд." +
+                $"{newlineSymbol}Команда /info: Предоставляет информацию о версии программы и дате её создания." //+
+                //"{newlineSymbol}Команда /exit: Завершить программу."
             );
             if (await _userService.GetUser(update.Message.From.Id, ct) != null)
                 outputBuilder.AppendLine(
-                    "\r\nКоманда /report: Отображает краткую статистику по текущим задачам." +
-                    "\r\nКоманда /find: Отображает все задачи пользователя, которые начинаются на заданное слово. Например, команда /find Имя веведет все " +
-                    "команды, начинающиеся на Имя" +
-                    "\r\nКоманда /addtask: После ввода команды добавьте описание задачи. После добавления задачи выводится сообщение, что задача добавлена." +
-                    $"\r\n\tМаксимальная длина задачи:{(_toDoService.TaskLengthLimit == -1 ? "не задано" : _toDoService.TaskLengthLimit)}" +
-                    $"\r\n\tМаксимальное количество задач:{(_toDoService.TaskCountLimit == -1 ? "не задано" : _toDoService.TaskCountLimit)}" +
-                    "\r\nКоманда /showtasks: После ввода команды отображается список всех активных задач." +
-                    "\r\nКоманда /showalltasks: После ввода команды отображается список всех задач." +
-                    "\r\nКоманда /removetask: После ввода команды отображается список задач с номерами. Введите номер задачи для её удаления." +
-                    "\r\nКоманда /completetask: Используется для завершения задачи. При вводе этой команды с номером задачи " +
-                    "\r\n(например, /completetask 0167b785-b830-4d02-b82a-881b0b678034), программа завершает задачу, её статус становится Completed."
+                    $"{newlineSymbol}Команда /report: Отображает краткую статистику по текущим задачам." +
+                    $"{newlineSymbol}Команда /find: Отображает все задачи пользователя, которые начинаются на заданное слово. Например, команда /find Имя веведет все " +
+                    $"команды, начинающиеся на Имя" +
+                    $"{newlineSymbol}Команда /addtask: После ввода команды добавьте описание задачи. После добавления задачи выводится сообщение, что задача добавлена." +
+                    $"{newlineSymbol}\tМаксимальная длина задачи:{(_toDoService.TaskLengthLimit == -1 ? "не задано" : _toDoService.TaskLengthLimit)}" +
+                    $"{newlineSymbol}\tМаксимальное количество задач:{(_toDoService.TaskCountLimit == -1 ? "не задано" : _toDoService.TaskCountLimit)}" +
+                    $"{newlineSymbol}Команда /showtasks: После ввода команды отображается список всех активных задач." +
+                    $"{newlineSymbol}Команда /showalltasks: После ввода команды отображается список всех задач." +
+                    $"{newlineSymbol}Команда /removetask: После ввода команды отображается список задач с номерами. Введите номер задачи для её удаления." +
+                    $"{newlineSymbol}Команда /completetask: Используется для завершения задачи. При вводе этой команды с номером задачи " +
+                    $"{newlineSymbol}(например, /completetask 0167b785-b830-4d02-b82a-881b0b678034), программа завершает задачу, её статус становится Completed."
             );
 
             await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), cancellationToken: ct);
