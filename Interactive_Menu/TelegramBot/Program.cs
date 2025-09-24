@@ -32,7 +32,9 @@ namespace Interactive_Menu.TelegramBot
             var botClient = new TelegramBotClient(token);
             var userRepository = new InMemoryUserRepository();
             var userService = new UserService(userRepository);
-            var toDoRepository = new InMemoryToDoRepository();
+            //var toDoRepository = new InMemoryToDoRepository();
+            
+            var toDoRepository = new FileToDoRepository("filerep");
             var toDoService = new ToDoService(toDoRepository);
             var toDoReportService = new ToDoReportService(toDoService);
             var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService);
