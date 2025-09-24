@@ -59,6 +59,8 @@ namespace Interactive_Menu.Infrastructure.DataAccess
 
         public async Task Add(ToDoItem item, CancellationToken ct)
         {
+            List<UserRecord>? records = new List<UserRecord>();
+            var userRecord = new UserRecord(item.User.UserId, item.Id);
             var folderName = $"{item.User.UserId}";
             var fileName = $"{item.Id}.json";
             var fullFileName = _directory + _directorySeparator + folderName + _directorySeparator + fileName;
@@ -72,27 +74,44 @@ namespace Interactive_Menu.Infrastructure.DataAccess
                 await GenerateNewIndexJSON(ct);
             else
             {
-                await using FileStream stream = new FileStream(
-                    _directory + _directorySeparator + "index.json",
-                    FileMode.OpenOrCreate,
-                    FileAccess.ReadWrite,
-                    FileShare.None
-                );
-                stream.Position = stream.Length;
-                if (stream.Position == 0)
+                await using FileStream readStream = File.OpenRead(_directory + _directorySeparator + "index.json");
+                records = await JsonSerializer.DeserializeAsync<List<UserRecord>>(readStream, cancellationToken: ct);
+                readStream.Close();
+                if (records is null)
                 {
-                    await stream.WriteAsync(System.Text.Encoding.UTF8.GetBytes("["), cancellationToken: ct);
-                }
-                else if (stream.Position > 20)
+                    records = new List<UserRecord> { userRecord };
+                } else
                 {
-                    stream.Position -= 1;
-                    await stream.WriteAsync(System.Text.Encoding.UTF8.GetBytes(", "), cancellationToken: ct);
+                    records.Add(userRecord);
                 }
-                await JsonSerializer.SerializeAsync(stream, new UserRecord(item.User.UserId, item.Id), cancellationToken: ct);
-                await stream.WriteAsync(System.Text.Encoding.UTF8.GetBytes("]"), cancellationToken: ct);
-                Console.WriteLine($"Связка {(item.User.UserId, item.Id)} - записана в файл {_directory + _directorySeparator}index.json");
+                await using FileStream writeStream = File.Create(_directory + _directorySeparator + "index.json");
+                await JsonSerializer.SerializeAsync(writeStream, records, cancellationToken: ct);
             }
+            Console.WriteLine($"Связка {(item.User.UserId, item.Id)} - записана в файл {_directory + _directorySeparator}index.json");
         }
+
+
+        /*  await using FileStream stream = new FileStream(
+              _directory + _directorySeparator + "index.json",
+              FileMode.OpenOrCreate,
+              FileAccess.ReadWrite,
+              FileShare.None
+          );
+          stream.Position = stream.Length;
+          if (stream.Position == 0)
+          {
+              await stream.WriteAsync(System.Text.Encoding.UTF8.GetBytes("["), cancellationToken: ct);
+          }
+          else if (stream.Position > 20)
+          {
+              stream.Position -= 1;
+              await stream.WriteAsync(System.Text.Encoding.UTF8.GetBytes(", "), cancellationToken: ct);
+          }
+          await JsonSerializer.SerializeAsync(stream, new UserRecord(item.User.UserId, item.Id), cancellationToken: ct);
+          await stream.WriteAsync(System.Text.Encoding.UTF8.GetBytes("]"), cancellationToken: ct);
+        
+            }
+        }*/
 
         public Task<int> CountActive(Guid userId, CancellationToken ct)
         {
@@ -114,6 +133,10 @@ namespace Interactive_Menu.Infrastructure.DataAccess
                 var userRecord = records.FirstOrDefault(i => i.Id == id);
                 if (userRecord != null)
                 {
+                    records.Remove(userRecord);
+                    await using FileStream writeStream = File.Create(_directory + _directorySeparator + "index.json");
+                    await JsonSerializer.SerializeAsync(writeStream, records, cancellationToken: ct);
+
                     var userId = userRecord.UserId;
                     var folderName = $"{userId}";
                     var fileName = $"{id}.json";
@@ -121,10 +144,8 @@ namespace Interactive_Menu.Infrastructure.DataAccess
                     if (File.Exists(fullFileName))
                     {
                         File.Delete(fullFileName);
-                        records.Remove(userRecord);
-                        await using FileStream writeStream = File.Create(_directory + _directorySeparator + "index.json");
-                        await JsonSerializer.SerializeAsync(writeStream, records, cancellationToken: ct);
                     }
+
                 }
             }
         }
