@@ -78,13 +78,12 @@ namespace Interactive_Menu.TelegramBot
                         await botClient.SendMessage(update.Message.Chat, "Вы не зарегистрированы. Нажмите /start для начала.", replyMarkup: _keyboardBeforeRegistration, cancellationToken: ct);
                     }
 
-                    var command = update.Message.Text.Trim().ToLower(); // Получаем текст сообщения
+                    var command = update.Message.Text.Trim().ToLower();
                     var trimmedCommand = command.Split(' ', 2)[0];
 
                     if (CommandsAfterRegistration.Any(i => i.Command == trimmedCommand) && _isTaskCountLimitSet && _isTaskLengthLimitSet)
                     {
-                        await ExecuteCommand(botClient, update, trimmedCommand, ct); // Переходим к выполнению соответствующей команды
-
+                        await ExecuteCommand(botClient, update, trimmedCommand, ct);
                     }
                     else if (!_isTaskCountLimitSet)
                     {
@@ -231,13 +230,20 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnRemoveTaskCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null || update.Message.Text is null) throw new ArgumentNullException();
+            if (update.Message is null || update.Message.Text is null || update.Message.From is null) throw new ArgumentNullException();
             var task = update.Message.Text.Trim();
             task = task.Remove(0, "/removetask".Length).Trim();
             Guid taskId = new Guid(task);
-            await _toDoService.Delete(taskId, ct);
-            await botClient.SendMessage(update.Message.Chat, $"Задача `{taskId}` удалена", cancellationToken: ct);
-
+            var user = await _userService.GetUser(update.Message.From.Id, ct);
+            if (user != null)
+            {
+                var items = await _toDoService.GetAllByUserId(user.UserId, ct);
+                if (items.Where(i => i.Id == taskId && i.User.UserId == user.UserId).Count() > 0)
+                {
+                    await _toDoService.Delete(taskId, ct);
+                    await botClient.SendMessage(update.Message.Chat, $"Задача `{taskId}` удалена", cancellationToken: ct);
+                }
+            }
         }
 
         private async Task OnShowTasksCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)

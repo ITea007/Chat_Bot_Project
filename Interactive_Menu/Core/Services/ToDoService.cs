@@ -65,10 +65,10 @@ namespace Interactive_Menu.Core.Services
 
         public async Task<ToDoItem> Add(ToDoUser user, string name, CancellationToken ct)
         {
-            //var listAll = await _toDoRepository.GetAllByUserId(user.UserId, ct);
-            //if (listAll.Count == TaskCountLimit) throw new TaskCountLimitException(TaskCountLimit);
-            //if (name.Length > TaskLengthLimit) throw new TaskLengthLimitException(name.Length, TaskLengthLimit);
-            //if (await _toDoRepository.ExistsByName(user.UserId, name, ct)) throw new DuplicateTaskException(name);
+            var listAll = await _toDoRepository.GetAllByUserId(user.UserId, ct);
+            if (listAll.Count == TaskCountLimit) throw new TaskCountLimitException(TaskCountLimit);
+            if (name.Length > TaskLengthLimit) throw new TaskLengthLimitException(name.Length, TaskLengthLimit);
+            if (await _toDoRepository.ExistsByName(user.UserId, name, ct)) throw new DuplicateTaskException(name);
 
             var task = new ToDoItem(user, name);
             await _toDoRepository.Add(task, ct);
