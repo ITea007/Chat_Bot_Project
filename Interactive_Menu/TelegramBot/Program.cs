@@ -1,11 +1,14 @@
-﻿using Otus.ToDoList.ConsoleBot;
-using Otus.ToDoList.ConsoleBot.Types;
+﻿using Interactive_Menu;
+using Interactive_Menu.Core.Services;
+using Interactive_Menu.Infrastructure.DataAccess;
 using System;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Runtime.CompilerServices;
 using System.Text;
-using Interactive_Menu;
-using Interactive_Menu.Infrastructure.DataAccess;
-using Interactive_Menu.Core.Services;
+using Telegram.Bot;
+using Telegram.Bot.Polling;
+using Telegram.Bot.Types;
 
 namespace Interactive_Menu.TelegramBot
 {
@@ -14,32 +17,48 @@ namespace Interactive_Menu.TelegramBot
         /// <summary>
         /// Точка запуска программы. Создаём клиента, сервисы, начинаем получать и обрабатывать сообщения.
         /// </summary>
-        public static void Main()
+        public static async Task Main()
         {
+            Console.InputEncoding = Encoding.GetEncoding("UTF-16");
+            // Get token from environment variable
+            string? token = Environment.GetEnvironmentVariable("TELEGRAM_BOT_TOKEN", EnvironmentVariableTarget.User);
+            if (string.IsNullOrEmpty(token))
+            {
+                await Console.Out.WriteLineAsync("Bot token not found. Please set the TELEGRAM_BOT_TOKEN environment variable.");
+                return;
+            }
             var cts = new CancellationTokenSource();
             var ct = cts.Token;
-            var botClient = new ConsoleBotClient();
+            var botClient = new TelegramBotClient(token);
             var userRepository = new InMemoryUserRepository();
             var userService = new UserService(userRepository);
             var toDoRepository = new InMemoryToDoRepository();
             var toDoService = new ToDoService(toDoRepository);
             var toDoReportService = new ToDoReportService(toDoService);
             var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService);
-            handler.OnHandleEventStarted += (message) => { Console.WriteLine($"Началась обработка сообщения '{message}'"); };
-            handler.OnHandleEventCompleted += (message) => { Console.WriteLine($"Закончилась обработка сообщения '{message}'"); };
-
             try
             {
-                Console.InputEncoding = Encoding.GetEncoding("UTF-16");
-                botClient.StartReceiving(handler, ct);
+                await botClient.SetMyCommands(handler.CommandsBeforeRegistration, cancellationToken:ct);
+                handler.OnHandleEventStarted += (message) => { Console.WriteLine($"Началась обработка сообщения '{message}'"); };
+                handler.OnHandleEventCompleted += (message) => { Console.WriteLine($"Закончилась обработка сообщения '{message}'"); };
+                botClient.StartReceiving(handler, cancellationToken: ct);
+                var me = await botClient.GetMe();
+                //Продолжаем ждать нажатие клавиши A для завершения программы
+                var waitForAKeyTask = WaitForAKeyAsync(ct, me);
+                await Task.WhenAll(waitForAKeyTask);
+                if (waitForAKeyTask.IsCompletedSuccessfully)
+                {
+                    cts.Cancel();
+                    Environment.Exit(0);
+                }
             }
             catch (Exception Ex)
             {
-                Console.WriteLine("Произошла непредвиденная ошибка:");
-                Console.WriteLine($"Тип исключения: {Ex.GetType()}");
-                Console.WriteLine($"Исключение: {Ex.Message}");
-                Console.WriteLine($"Трассировка стека: {Ex.StackTrace}");
-                Console.WriteLine($"Внутреннее исключение: {Ex.InnerException}");
+                await Console.Out.WriteLineAsync("Произошла непредвиденная ошибка:");
+                await Console.Out.WriteLineAsync($"Тип исключения: {Ex.GetType()}");
+                await Console.Out.WriteLineAsync($"Исключение: {Ex.Message}");
+                await Console.Out.WriteLineAsync($"Трассировка стека: {Ex.StackTrace}");
+                await Console.Out.WriteLineAsync($"Внутреннее исключение: {Ex.InnerException}");
             }
             finally
             {
@@ -48,6 +67,28 @@ namespace Interactive_Menu.TelegramBot
             }
         }
 
+        // Метод для асинхронного ожидания нажатия клавиши A
+        static async Task WaitForAKeyAsync(CancellationToken ct, User? me)
+        {
+
+            await Console.Out.WriteLineAsync($"Нажмите клавишу A для выхода");
+            while (!ct.IsCancellationRequested)
+            {
+                if (Console.KeyAvailable)
+                {
+                    var key = Console.ReadKey(intercept: true);
+                    if (key.Key == ConsoleKey.A)
+                        return;
+                    else
+                    {
+                        if (me != null)
+                            await Console.Out.WriteLineAsync($"Telegram bot is alive - {me.Id} - {me.FirstName} - {me.Username}");
+                        await Console.Out.WriteLineAsync($"Нажмите клавишу A для выхода");
+                    }
+                }
+                await Task.Delay(500, ct);
+            }
+        }
     }
 
 

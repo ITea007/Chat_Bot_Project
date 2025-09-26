@@ -20,7 +20,7 @@ namespace Interactive_Menu.Core.Services
         /// <summary>
         /// Заданное максимальное количество задач
         /// </summary>
-        public int TaskCountLimit { get; set; } = -1;
+        public int TaskCountLimit { get; set; } = 100;
         /// <summary>
         /// Минимально допустимое количество задач
         /// </summary>
@@ -32,7 +32,7 @@ namespace Interactive_Menu.Core.Services
         /// <summary>
         /// Заданная максимальная длина строки описания задачи
         /// </summary>
-        public int TaskLengthLimit { get; set; } = -1;
+        public int TaskLengthLimit { get; set; } = 100;
         /// <summary>
         /// Минимально допустимая длина строки описания задачи
         /// </summary>
