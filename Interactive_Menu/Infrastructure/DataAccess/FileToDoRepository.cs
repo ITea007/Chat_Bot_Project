@@ -50,7 +50,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
                     if (Guid.TryParse(arr[1], out userId) && Guid.TryParse(arr[2].Replace(".json", ""), out toDoItemId))
                     {
                         records.Add(new UserRecord(userId, toDoItemId));
-                        Console.WriteLine($"Added to index.json UserId: {userId} ToDoItemId: {toDoItemId} as {(userId, toDoItemId)}");
+                        //Console.WriteLine($"Added to index.json UserId: {userId} ToDoItemId: {toDoItemId} as {(userId, toDoItemId)}");
                     }
                 }
             }
@@ -68,7 +68,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
                 Directory.CreateDirectory(_directory + _directorySeparator + folderName);
             await using FileStream createStream = File.Create(fullFileName);
             await JsonSerializer.SerializeAsync(createStream, item, cancellationToken: ct);
-            Console.WriteLine($"Задача {item.Name} - {item.CreatedAt} - записана в файл {folderName + _directorySeparator + fileName}");
+            //Console.WriteLine($"Задача {item.Name} - {item.CreatedAt} - записана в файл {folderName + _directorySeparator + fileName}");
             if (!File.Exists(_directory + _directorySeparator + "index.json"))
                 await GenerateNewIndexJSON(ct);
             else
@@ -86,7 +86,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
                 await using FileStream writeStream = File.Create(_directory + _directorySeparator + "index.json");
                 await JsonSerializer.SerializeAsync(writeStream, records, cancellationToken: ct);
             }
-            Console.WriteLine($"Связка {(item.User.UserId, item.Id)} - записана в файл {_directory + _directorySeparator}index.json");
+            //Console.WriteLine($"Связка {(item.User.UserId, item.Id)} - записана в файл {_directory + _directorySeparator}index.json");
         }
 
         public async Task Delete(Guid id, CancellationToken ct)
@@ -122,7 +122,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
         public async Task<bool> ExistsByName(Guid userId, string name, CancellationToken ct)
         {
             if (name is null) throw new ArgumentNullException();
-            var folderName = $"{_directory}+{userId}";
+            var folderName = _directory + _directorySeparator + $"{userId}";
             if (!Directory.Exists(folderName))
                 return false;
             else
@@ -148,15 +148,19 @@ namespace Interactive_Menu.Infrastructure.DataAccess
         public async Task<ToDoItem?> Get(Guid id, CancellationToken ct)
         {
             ValueTask<ToDoItem?> outputItem = new ValueTask<ToDoItem?>();
-            var files = Directory.GetFiles(_directory);
-            foreach (var file in files)
+            var directories = Directory.GetDirectories(_directory);
+            foreach (var directory in directories)
             {
-                if (file.Contains(id.ToString()))
+                var files = Directory.GetFiles(directory);
+                foreach (var file in files)
                 {
-                    await using FileStream readStream = File.OpenRead(file);
-                    var item = JsonSerializer.DeserializeAsync<ToDoItem>(readStream, cancellationToken: ct);
-                    if (item.Result != null && item.Result.Id == id)
-                        outputItem = item;
+                    if (file.Contains(id.ToString()))
+                    {
+                        await using FileStream readStream = File.OpenRead(file);
+                        var item = JsonSerializer.DeserializeAsync<ToDoItem>(readStream, cancellationToken: ct);
+                        if (item.Result != null && item.Result.Id == id)
+                            outputItem = item;
+                    }
                 }
             }
             return outputItem.Result;
@@ -165,7 +169,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
         public async Task<IReadOnlyList<ToDoItem>> GetActiveByUserId(Guid userId, CancellationToken ct)
         {
             List<ToDoItem> toDoItems = new List<ToDoItem>();
-            var folderName = $"{userId}";
+            var folderName = _directory + _directorySeparator + $"{userId}";
             if (Directory.Exists(folderName))
             {
                 var files = Directory.GetFiles(folderName);
@@ -193,7 +197,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
         public async Task<IReadOnlyList<ToDoItem>> GetAllByUserId(Guid userId, CancellationToken ct)
         {
             List<ToDoItem> toDoItems = new List<ToDoItem>();
-            var folderName = $"{userId}";
+            var folderName = _directory + _directorySeparator + $"{userId}";
             if (Directory.Exists(folderName))
             {
                 var files = Directory.GetFiles(folderName);

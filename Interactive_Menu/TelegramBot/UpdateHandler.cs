@@ -10,6 +10,7 @@ using System.Xml.Linq;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Interactive_Menu.TelegramBot
@@ -22,8 +23,9 @@ namespace Interactive_Menu.TelegramBot
         private IUserService _userService;
         private ToDoService _toDoService;
         private IToDoReportService _toDoReportService;
+        private Helper _helper = new Helper();
 
-        public delegate void MessageEventHandler(string message);
+        public delegate void MessageEventHandler(string message, long telegramId);
         public event MessageEventHandler? OnHandleEventStarted;
         public event MessageEventHandler? OnHandleEventCompleted;
 
@@ -50,32 +52,20 @@ namespace Interactive_Menu.TelegramBot
             _toDoReportService = toDoReportService;
         }
 
-        private ReplyKeyboardMarkup _keyboardBeforeRegistration = new ReplyKeyboardMarkup(
-                    new KeyboardButton[] { "/start" })
-        {
-            ResizeKeyboard = true,
-        };
-        private ReplyKeyboardMarkup _keyboardAfterRegistration = new ReplyKeyboardMarkup(
-            new KeyboardButton[] { "/showalltasks", "/showtasks", "/report" })
-        {
-            ResizeKeyboard = true,
-        };
-
         public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
             try
             {
                 if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
-                
-
                 if (update.Message.Text != null)
                 {
-                    OnHandleEventStarted?.Invoke(update.Message.Text);
-                    await botClient.SendMessage(update.Message.Chat, $"Получил '{update.Message.Text}'", cancellationToken: ct);
-                    var isRegistered = await _userService.GetUser(update.Message.From.Id, ct);
-                     if (update.Message.Text != "/start" && isRegistered == null)
+                    OnHandleEventStarted?.Invoke(update.Message.Text, update.Message.From.Id); 
+                    await botClient.SendMessage(update.Message.Chat, $"Получил '{update.Message.Text}'", ParseMode.Markdown, cancellationToken: ct);
+                    var user = await _userService.GetUser(update.Message.From.Id, ct);
+                     if (update.Message.Text != "/start" && user == null)
                     {
-                        await botClient.SendMessage(update.Message.Chat, "Вы не зарегистрированы. Нажмите /start для начала.", replyMarkup: _keyboardBeforeRegistration, cancellationToken: ct);
+                        await botClient.SetMyCommands(CommandsBeforeRegistration, cancellationToken: ct);
+                        await botClient.SendMessage(update.Message.Chat, "Вы не зарегистрированы. Нажмите /start для начала.", replyMarkup: _helper._keyboardBeforeRegistration, cancellationToken: ct);
                     }
 
                     var command = update.Message.Text.Trim().ToLower();
@@ -97,7 +87,7 @@ namespace Interactive_Menu.TelegramBot
                     {
                         await botClient.SendMessage(update.Message.Chat, "Неизвестная команда.", cancellationToken: ct);
                     }
-                    OnHandleEventCompleted?.Invoke(update.Message.Text);
+                    OnHandleEventCompleted?.Invoke(update.Message.Text, update.Message.From.Id);
                 } else
                 {
                     await botClient.SendMessage(update.Message.Chat, "Получил пустой текст.", cancellationToken: ct);
@@ -119,6 +109,7 @@ namespace Interactive_Menu.TelegramBot
             if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
             if (await _userService.GetUser(update.Message.From.Id, ct) != null)
             {
+                await botClient.SetMyCommands(CommandsAfterRegistration, cancellationToken: ct);
                 switch (command)
                 {
                     case "/start": await OnStartCommand(botClient, update, ct); break;
@@ -134,18 +125,26 @@ namespace Interactive_Menu.TelegramBot
                     case "/find": await OnFindCommand(botClient, update, ct); break;
                     default: await botClient.SendMessage(update.Message.Chat, "Ошибка обработки команды.", cancellationToken: ct); break;
                 }
+                await botClient.SendMessage(update.Message.Chat, "Выберите команду:", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
             } else
             {
+                await botClient.SetMyCommands(CommandsBeforeRegistration, cancellationToken: ct);
+                var reply = _helper._keyboardBeforeRegistration;
                 switch (command)
                 {
-                    case "/start": await OnStartCommand(botClient, update, ct); break;
+                    case "/start": 
+                        await OnStartCommand(botClient, update, ct); 
+                        reply = _helper._keyboardAfterRegistration; 
+                        await botClient.SetMyCommands(CommandsAfterRegistration, cancellationToken: ct); 
+                        break;
                     case "/help": await OnHelpCommand(botClient, update, ct); break;
                     case "/info": await OnInfoCommand(botClient, update, ct); break;
                     //case "/exit": await OnExitCommand(botClient, update, ct); break;
                     default: await botClient.SendMessage(update.Message.Chat, "Ошибка обработки команды.", cancellationToken: ct); break;
                 }
+                await botClient.SendMessage(update.Message.Chat, "Выберите команду:", replyMarkup: reply, cancellationToken: ct);
             }
-            await botClient.SendMessage(update.Message.Chat, "Выберите команду:", replyMarkup: _keyboardAfterRegistration, cancellationToken: ct);
+
         }
 
         /// <summary>
@@ -170,9 +169,9 @@ namespace Interactive_Menu.TelegramBot
                 {
                     outputBuilder.AppendLine($"Задачи, начинающиеся на {namePrefix}");
                     for (int i = 0; i < tasksList.Count; i++)
-                        outputBuilder.AppendLine($"Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - `{tasksList[i].Id}`");
+                        outputBuilder.AppendLine($"Имя задачи '{tasksList[i].Name}' - {tasksList[i].CreatedAt} - `{tasksList[i].Id}`");
                 }
-                await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), cancellationToken: ct);
+                await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), ParseMode.Markdown, cancellationToken: ct);
             }
         }
 
@@ -203,18 +202,16 @@ namespace Interactive_Menu.TelegramBot
             Guid taskId = new Guid(task);
             await _toDoService.MarkAsCompleted(taskId, ct);
 
-            await botClient.SendMessage(update.Message.Chat, $"Статус задачи `{taskId}` изменен", cancellationToken: ct);
+            await botClient.SendMessage(update.Message.Chat, $"Статус задачи `{taskId}` изменен", ParseMode.Markdown, cancellationToken: ct);
         }
 
         private async Task OnShowAllTasksCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
             if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
-            Guid userId = new Guid();
             var user = await _userService.GetUser(update.Message.From.Id, ct);
             if (user != null)
             {
-                userId = user.UserId;
-                var tasksList = await _toDoService.GetAllByUserId(userId, ct);
+                var tasksList = await _toDoService.GetAllByUserId(user.UserId, ct);
                 StringBuilder outputBuilder = new StringBuilder();
                 if (tasksList.Count == 0)
                     outputBuilder.AppendLine("Список задач пуст");
@@ -222,9 +219,9 @@ namespace Interactive_Menu.TelegramBot
                 {
                     outputBuilder.AppendLine("Список всех задач:");
                     for (int i = 0; i < tasksList.Count; i++)
-                        outputBuilder.AppendLine($"({tasksList[i].State}) Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - `{tasksList[i].Id}`");
+                        outputBuilder.AppendLine($"({tasksList[i].State}) Задача `{tasksList[i].Name}` - создана {tasksList[i].CreatedAt} - `{tasksList[i].Id}`");
                 }
-                await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), cancellationToken: ct);
+                await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(),ParseMode.Markdown, cancellationToken: ct);
             }
         }
 
@@ -241,7 +238,7 @@ namespace Interactive_Menu.TelegramBot
                 if (items.Where(i => i.Id == taskId && i.User.UserId == user.UserId).Count() > 0)
                 {
                     await _toDoService.Delete(taskId, ct);
-                    await botClient.SendMessage(update.Message.Chat, $"Задача `{taskId}` удалена", cancellationToken: ct);
+                    await botClient.SendMessage(update.Message.Chat, $"Задача `{taskId}` удалена", ParseMode.Markdown, cancellationToken: ct);
                 }
             }
         }
@@ -264,9 +261,9 @@ namespace Interactive_Menu.TelegramBot
                     outputBuilder.AppendLine("Список текущих задач:");
                     for (int i = 0; i < tasksList.Count; i++)
                         if (tasksList[i].State == ToDoItemState.Active)
-                            outputBuilder.AppendLine($"Имя задачи {tasksList[i].Name} - {tasksList[i].CreatedAt} - `{tasksList[i].Id}`");
+                            outputBuilder.AppendLine($"Имя задачи `{tasksList[i].Name}` - {tasksList[i].CreatedAt} - `{tasksList[i].Id}`");
                 }
-                await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), cancellationToken: ct);
+                await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), ParseMode.Markdown, cancellationToken: ct);
             }
         }
 
@@ -279,7 +276,7 @@ namespace Interactive_Menu.TelegramBot
             if (user != null)
             {
                 await _toDoService.Add(user, task, ct);
-                await botClient.SendMessage(update.Message.Chat, $"Добавлена задача {task}", cancellationToken: ct);
+                await botClient.SendMessage(update.Message.Chat, $"Добавлена задача `{task}`", ParseMode.Markdown, cancellationToken: ct);
             }
         }
 
@@ -353,18 +350,17 @@ namespace Interactive_Menu.TelegramBot
             if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
             if (await _userService.GetUser(update.Message.From.Id, ct) != null)
             {
-                await botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}. Вы уже зарегистрированы.", cancellationToken: ct);
+                await botClient.SetMyCommands(CommandsAfterRegistration, cancellationToken: ct);
+                await botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}. Вы уже зарегистрированы.", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
             }
-            else
+            else if (update.Message.From.Username != null)
             {
-                if (update.Message.From.Username != null)
-                {
                     await _userService.RegisterUser(update.Message.From.Id, update.Message.From.Username, ct);
-                    await botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}", cancellationToken: ct);
                     await botClient.SetMyCommands(CommandsAfterRegistration, cancellationToken: ct);
-                }
+                    await botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
             }
             
+
             if (_toDoService.TaskLengthLimit == -1)
                 _isTaskLengthLimitSet = false;
             if (_toDoService.TaskCountLimit == -1)
