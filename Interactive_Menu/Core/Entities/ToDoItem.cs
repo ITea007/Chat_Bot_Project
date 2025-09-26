@@ -8,20 +8,20 @@ namespace Interactive_Menu.Core.Entities
 {
     internal class ToDoItem
     {
-        public Guid Id { get; }
+        public Guid Id { get; set; }
         public ToDoUser User { get; set; }
         public string Name { get; set; }
-        public DateTime CreatedAt { get; }
+        public DateTime CreatedAt { get; set; }
         public ToDoItemState State { get; set; }
         public DateTime? StateChangedAt { get; set; }
 
         public ToDoItem(ToDoUser user, string name)
         {
+            Id = Guid.NewGuid();
             User = user;
             Name = name;
             CreatedAt = DateTime.UtcNow;
             State = ToDoItemState.Active;
-            Id = Guid.NewGuid();
         }
     }
 }

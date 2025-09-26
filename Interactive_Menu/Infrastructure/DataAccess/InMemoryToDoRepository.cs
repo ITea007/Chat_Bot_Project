@@ -36,7 +36,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
 
         public Task<bool> ExistsByName(Guid userId, string name, CancellationToken ct)
         {
-            return Task.FromResult(_tasks.Where(i => i.Name == name).Count() > 0 ? true : false);
+            return Task.FromResult(_tasks.Where(i => i.Name == name && i.User.UserId == userId).Count() > 0 ? true : false);
         }
 
         public async Task<IReadOnlyList<ToDoItem>> Find(Guid userId, Func<ToDoItem, bool> predicate, CancellationToken ct)

@@ -19,7 +19,7 @@ namespace Interactive_Menu.TelegramBot
         /// </summary>
         public static async Task Main()
         {
-            Console.InputEncoding = Encoding.GetEncoding("UTF-16");
+            Console.InputEncoding = Encoding.GetEncoding("UTF-8");
             // Get token from environment variable
             string? token = Environment.GetEnvironmentVariable("TELEGRAM_BOT_TOKEN", EnvironmentVariableTarget.User);
             if (string.IsNullOrEmpty(token))
@@ -30,17 +30,17 @@ namespace Interactive_Menu.TelegramBot
             var cts = new CancellationTokenSource();
             var ct = cts.Token;
             var botClient = new TelegramBotClient(token);
-            var userRepository = new InMemoryUserRepository();
+            var userRepository = new FileUserRepository("userrep");
             var userService = new UserService(userRepository);
-            var toDoRepository = new InMemoryToDoRepository();
+            var toDoRepository = new FileToDoRepository("filerep");
             var toDoService = new ToDoService(toDoRepository);
             var toDoReportService = new ToDoReportService(toDoService);
             var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService);
             try
             {
                 await botClient.SetMyCommands(handler.CommandsBeforeRegistration, cancellationToken:ct);
-                handler.OnHandleEventStarted += (message) => { Console.WriteLine($"Началась обработка сообщения '{message}'"); };
-                handler.OnHandleEventCompleted += (message) => { Console.WriteLine($"Закончилась обработка сообщения '{message}'"); };
+                handler.OnHandleEventStarted += (message, telegramId) => { Console.WriteLine($"Началась обработка сообщения '{message}' от '{telegramId}'"); };
+                handler.OnHandleEventCompleted += (message, telegramId) => { Console.WriteLine($"Закончилась обработка сообщения '{message}' от '{telegramId}'"); };
                 botClient.StartReceiving(handler, cancellationToken: ct);
                 var me = await botClient.GetMe();
                 //Продолжаем ждать нажатие клавиши A для завершения программы
@@ -62,15 +62,14 @@ namespace Interactive_Menu.TelegramBot
             }
             finally
             {
-                handler.OnHandleEventStarted -= (message) => { Console.WriteLine($"Началась обработка сообщения '{message}'"); };
-                handler.OnHandleEventCompleted -= (message) => { Console.WriteLine($"Закончилась обработка сообщения '{message}'"); };
+                handler.OnHandleEventStarted -= (message, telegramId) => { Console.WriteLine($"Началась обработка сообщения '{message}' от '{telegramId}'"); };
+                handler.OnHandleEventCompleted -= (message, telegramId) => { Console.WriteLine($"Закончилась обработка сообщения '{message}' от '{telegramId}'"); };
             }
         }
 
         // Метод для асинхронного ожидания нажатия клавиши A
         static async Task WaitForAKeyAsync(CancellationToken ct, User? me)
         {
-
             await Console.Out.WriteLineAsync($"Нажмите клавишу A для выхода");
             while (!ct.IsCancellationRequested)
             {
