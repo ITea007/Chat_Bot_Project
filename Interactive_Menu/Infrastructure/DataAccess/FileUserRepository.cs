@@ -13,7 +13,6 @@ namespace Interactive_Menu.Infrastructure.DataAccess
     internal class FileUserRepository : IUserRepository
     {
         private string _directory;
-        private char _directorySeparator = Path.DirectorySeparatorChar;
 
         public FileUserRepository(string directoryName)
         {
@@ -23,7 +22,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
         public async Task Add(ToDoUser user, CancellationToken ct)
         {
             var fileName = $"{user.UserId}.json";
-            var fullFileName = _directory + _directorySeparator + fileName;
+            var fullFileName = Path.Combine(_directory,fileName);
             if (!Directory.Exists(_directory))
                 Directory.CreateDirectory(_directory);
             await using FileStream createStream = File.Create(fullFileName);
@@ -33,12 +32,12 @@ namespace Interactive_Menu.Infrastructure.DataAccess
 
         public async Task<ToDoUser?> GetUser(Guid userId, CancellationToken ct)
         {
-            var fileName = $"{userId.ToString()}.json";
-            var fullFileName = _directory + _directorySeparator + fileName;
             if (Directory.Exists(_directory))
             {
+                var fullFileName = Path.Combine(_directory, $"{userId}.json");
                 await using FileStream readStream = File.OpenRead(fullFileName);
                 var outputUser = await JsonSerializer.DeserializeAsync<ToDoUser>(readStream, cancellationToken: ct);
+                return outputUser;
             }
             return null;
         }
