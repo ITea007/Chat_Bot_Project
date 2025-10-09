@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -18,11 +19,13 @@ namespace Interactive_Menu.TelegramBot.Scenarios
     {
         private IUserService _userService;
         private IToDoService _toDoService;
+        private Helper _helper;
 
-        public AddTaskScenario(IUserService userService, IToDoService toDoService)
+        public AddTaskScenario(IUserService userService, IToDoService toDoService, Helper helper)
         {
             _userService = userService;
             _toDoService = toDoService;
+            _helper = helper;
         }
         public bool CanHandle(ScenarioType scenario)
         {
@@ -42,7 +45,7 @@ namespace Interactive_Menu.TelegramBot.Scenarios
                     var toDoUser = await _userService.GetUser(update.Message.From.Id, ct);
                     if (toDoUser is null) throw new UserNotFoundException(update.Message.From.Id);
                     context.Data.Add("User", toDoUser);
-                    await bot.SendMessage(update.Message.Chat.Id, "Введите название задачи:");
+                    await bot.SendMessage(update.Message.Chat.Id, "Введите название задачи:", replyMarkup: _helper._cancelKeyboard, cancellationToken: ct);
                     context.CurrentStep = "Name";
                     return ScenarioResult.Transition;
                 case "Name":
@@ -51,7 +54,7 @@ namespace Interactive_Menu.TelegramBot.Scenarios
                     if (userValue is ToDoUser user)
                     {
                         await _toDoService.Add(user, update.Message.Text, ct);
-                        await bot.SendMessage(update.Message.Chat.Id, $"Задача '{update.Message.Text}' добавлена.");
+                        await bot.SendMessage(update.Message.Chat.Id, $"Задача '{update.Message.Text}' добавлена.", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
                     }
                     else
                     {

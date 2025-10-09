@@ -20,6 +20,11 @@ namespace Interactive_Menu.TelegramBot
         {
             ResizeKeyboard = true,
         };
+        internal ReplyKeyboardMarkup _cancelKeyboard = new ReplyKeyboardMarkup(
+    new KeyboardButton[] { "/cancel" })
+        {
+            ResizeKeyboard = true,
+        };
     }
 
 

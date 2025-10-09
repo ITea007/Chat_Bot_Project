@@ -37,10 +37,12 @@ namespace Interactive_Menu.TelegramBot
             var toDoService = new ToDoService(toDoRepository);
             var toDoReportService = new ToDoReportService(toDoService);
             var scenarioContextRepository = new InMemoryScenarioContextRepository();
+            var helper = new Helper();
             var scenarios = new List<IScenario>();
-            scenarios.Add(new AddTaskScenario(userService, toDoService));
+            scenarios.Add(new AddTaskScenario(userService, toDoService, helper));
+            
 
-            var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService, scenarios, scenarioContextRepository);
+            var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService, scenarios, scenarioContextRepository, helper);
             try
             {
                 await botClient.SetMyCommands(handler.CommandsBeforeRegistration, cancellationToken:ct);

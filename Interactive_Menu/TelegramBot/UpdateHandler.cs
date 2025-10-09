@@ -26,7 +26,7 @@ namespace Interactive_Menu.TelegramBot
         private IUserService _userService;
         private ToDoService _toDoService;
         private IToDoReportService _toDoReportService;
-        private Helper _helper = new Helper();
+        private Helper _helper;
         private bool _isTaskCountLimitSet { get; set; } = true;
         private bool _isTaskLengthLimitSet { get; set; } = true;
         private IEnumerable<IScenario> _scenarios;
@@ -53,7 +53,7 @@ namespace Interactive_Menu.TelegramBot
                 };
 
         public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService, 
-            IToDoReportService toDoReportService, IEnumerable<IScenario> scenarios, IScenarioContextRepository contextRepository)
+            IToDoReportService toDoReportService, IEnumerable<IScenario> scenarios, IScenarioContextRepository contextRepository, Helper helper)
         {
             _bot = botClient;
             _userService = userService;
@@ -61,6 +61,7 @@ namespace Interactive_Menu.TelegramBot
             _toDoReportService = toDoReportService;
             _scenarios = scenarios;
             _contextRepository = contextRepository;
+            _helper = helper;
         }
 
         //Возвращает соответствующий сценарий. Если сценарий не найден, то выбрасывает исключение ScenarioNotFoundException.
@@ -98,24 +99,28 @@ namespace Interactive_Menu.TelegramBot
                 {
                     OnHandleEventStarted?.Invoke(update.Message.Text, update.Message.From.Id);
                     await botClient.SendMessage(update.Message.Chat, $"Получил '{update.Message.Text}'", ParseMode.Markdown, cancellationToken: ct);
-                    // получение ScenarioContext через IScenarioContextRepository перед обработкой команд.
-                    var context = await _contextRepository.GetContext(update.Message.From.Id, ct);
-                    if (context is not null)
-                    {
-                        //ЕСЛИ ScenarioContext найден, ТО вызвать метод ProcessScenario и завершить обработку
-                        await ProcessScenario(context, update, ct);
-                        return;
-                    }
-
+                    var command = update.Message.Text.Trim().ToLower();
+                    var trimmedCommand = command.Split(' ', 2)[0];
                     var user = await _userService.GetUser(update.Message.From.Id, ct);
-                     if (update.Message.Text != "/start" && user == null)
+                    if (update.Message.Text != "/start" && user == null)
                     {
                         await botClient.SetMyCommands(CommandsBeforeRegistration, cancellationToken: ct);
                         await botClient.SendMessage(update.Message.Chat, "Вы не зарегистрированы. Нажмите /start для начала.", replyMarkup: _helper._keyboardBeforeRegistration, cancellationToken: ct);
                     }
 
-                    var command = update.Message.Text.Trim().ToLower();
-                    var trimmedCommand = command.Split(' ', 2)[0];
+                    // получение ScenarioContext через IScenarioContextRepository перед обработкой команд.
+                    var context = await _contextRepository.GetContext(update.Message.From.Id, ct);
+                    if (context is not null)
+                    {
+                        if (trimmedCommand == "/cancel")
+                        {
+                            await OnCancelCommand(botClient, update, ct);
+                            return;
+                        }
+                        //ЕСЛИ ScenarioContext найден, ТО вызвать метод ProcessScenario и завершить обработку
+                        await ProcessScenario(context, update, ct);
+                        return;
+                    }
 
                     if (CommandsAfterRegistration.Any(i => i.Command == trimmedCommand) && _isTaskCountLimitSet && _isTaskLengthLimitSet)
                     {
@@ -148,6 +153,15 @@ namespace Interactive_Menu.TelegramBot
                 await Console.Out.WriteLineAsync($"Трассировка стека: {Ex.StackTrace}");
                 await Console.Out.WriteLineAsync($"Внутреннее исключение: {Ex.InnerException}");
             }
+        }
+
+        private async Task OnCancelCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
+        {
+            if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
+            var user = await _userService.GetUser(update.Message.From.Id, ct);
+            if (user is null) throw new ArgumentNullException();
+            await _contextRepository.ResetContext(user.TelegramUserId, ct);
+            await botClient.SendMessage(update.Message.Chat, $"Секущий сценарий отменен", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
         }
 
         private async Task ExecuteCommand(ITelegramBotClient botClient, Update update, string command, CancellationToken ct)
@@ -346,6 +360,8 @@ namespace Interactive_Menu.TelegramBot
             if (update.Message is null) throw new ArgumentNullException();
             StringBuilder outputBuilder = new StringBuilder();
             outputBuilder.AppendLine($"{newlineSymbol}" +
+                                $"*  Текущая версия программы 10.0.  Дата создания 09-10-2025{newlineSymbol}" +
+                                $"   Реализована работа cо сценариями и команда отмены сценария /cancel (ДЗ 11) {newlineSymbol}" +
                                 $"*  Текущая версия программы 9.0.  Дата создания 24-09-2025{newlineSymbol}" +
                                 $"   Реализована работа c файлами (ДЗ 10) {newlineSymbol}" +
                                 $"*  Версия программы 8.0.  Дата создания 22-09-2025{newlineSymbol}" +
@@ -382,6 +398,7 @@ namespace Interactive_Menu.TelegramBot
             );
             if (await _userService.GetUser(update.Message.From.Id, ct) != null)
                 outputBuilder.AppendLine(
+                    $"{newlineSymbol}Команда /cancel: Отменяет текущий сценарий." +
                     $"{newlineSymbol}Команда /report: Отображает краткую статистику по текущим задачам." +
                     $"{newlineSymbol}Команда /find: Отображает все задачи пользователя, которые начинаются на заданное слово. Например, команда /find Имя веведет все " +
                     $"команды, начинающиеся на Имя" +
