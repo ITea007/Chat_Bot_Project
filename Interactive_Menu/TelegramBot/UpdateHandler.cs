@@ -1,5 +1,7 @@
 ﻿using Interactive_Menu.Core.Entities;
+using Interactive_Menu.Core.Exceptions;
 using Interactive_Menu.Core.Services;
+using Interactive_Menu.TelegramBot.Scenarios;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using System.Xml.Xsl;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
@@ -24,13 +27,17 @@ namespace Interactive_Menu.TelegramBot
         private ToDoService _toDoService;
         private IToDoReportService _toDoReportService;
         private Helper _helper = new Helper();
+        private bool _isTaskCountLimitSet { get; set; } = true;
+        private bool _isTaskLengthLimitSet { get; set; } = true;
+        private IEnumerable<IScenario> _scenarios;
+        private IScenarioContextRepository _contextRepository;
+        private ITelegramBotClient _bot;
 
         public delegate void MessageEventHandler(string message, long telegramId);
         public event MessageEventHandler? OnHandleEventStarted;
         public event MessageEventHandler? OnHandleEventCompleted;
 
-        private bool _isTaskCountLimitSet { get; set; } = true;
-        private bool _isTaskLengthLimitSet { get; set; } = true;
+
         public List<BotCommand> CommandsAfterRegistration { get; } = new List<BotCommand> {
                     { new BotCommand("/start", "Начинает работу с ботом") }, { new BotCommand("/help", "Показывает справку по командам") },
                     { new BotCommand("/info", "Показывает информацию по боту") }, { new BotCommand("/addtask", "Добавляет задачу")},
@@ -45,12 +52,42 @@ namespace Interactive_Menu.TelegramBot
                     { new BotCommand("/info", "Показывает информацию по боту")  }
                 };
 
-        public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService, IToDoReportService toDoReportService)
+        public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService, 
+            IToDoReportService toDoReportService, IEnumerable<IScenario> scenarios, IScenarioContextRepository contextRepository)
         {
+            _bot = botClient;
             _userService = userService;
             _toDoService = (ToDoService)toDoService;
             _toDoReportService = toDoReportService;
+            _scenarios = scenarios;
+            _contextRepository = contextRepository;
         }
+
+        //Возвращает соответствующий сценарий. Если сценарий не найден, то выбрасывает исключение ScenarioNotFoundException.
+        public Task<IScenario> GetScenario(ScenarioType scenario)
+        {
+            var output = _scenarios.Where(s => s.CanHandle(scenario)).FirstOrDefault();
+            if (output != null)
+                return Task.FromResult(output);
+            else
+                throw new ScenarioNotFoundException(scenario);
+        }
+
+        public async Task ProcessScenario(ScenarioContext context, Update update, CancellationToken ct)
+        {
+            if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
+            var scenario = await GetScenario(context.CurrentScenario);
+            if (await scenario.HandleMessageAsync(_bot, context, update, ct) == ScenarioResult.Completed)
+            {
+                await _contextRepository.ResetContext(update.Message.From.Id, ct);
+            } else 
+            {
+               await _contextRepository.SetContext(update.Message.From.Id, context, ct);
+            }
+        }
+
+
+
 
         public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
@@ -59,8 +96,17 @@ namespace Interactive_Menu.TelegramBot
                 if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
                 if (update.Message.Text != null)
                 {
-                    OnHandleEventStarted?.Invoke(update.Message.Text, update.Message.From.Id); 
+                    OnHandleEventStarted?.Invoke(update.Message.Text, update.Message.From.Id);
                     await botClient.SendMessage(update.Message.Chat, $"Получил '{update.Message.Text}'", ParseMode.Markdown, cancellationToken: ct);
+                    // получение ScenarioContext через IScenarioContextRepository перед обработкой команд.
+                    var context = await _contextRepository.GetContext(update.Message.From.Id, ct);
+                    if (context is not null)
+                    {
+                        //ЕСЛИ ScenarioContext найден, ТО вызвать метод ProcessScenario и завершить обработку
+                        await ProcessScenario(context, update, ct);
+                        return;
+                    }
+
                     var user = await _userService.GetUser(update.Message.From.Id, ct);
                      if (update.Message.Text != "/start" && user == null)
                     {
@@ -125,7 +171,10 @@ namespace Interactive_Menu.TelegramBot
                     case "/find": await OnFindCommand(botClient, update, ct); break;
                     default: await botClient.SendMessage(update.Message.Chat, "Ошибка обработки команды.", cancellationToken: ct); break;
                 }
-                await botClient.SendMessage(update.Message.Chat, "Выберите команду:", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
+                if (command != "/addtask")
+                {
+                    await botClient.SendMessage(update.Message.Chat, "Выберите команду:", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
+                }
             } else
             {
                 await botClient.SetMyCommands(CommandsBeforeRegistration, cancellationToken: ct);
@@ -269,7 +318,11 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnAddTaskCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null || update.Message.Text is null || update.Message.From is null) throw new ArgumentNullException();
+            //При получении команды / addtask создать ScenarioContext c ScenarioType.AddTask и вызвать метод ProcessScenario
+            var scenarioContext = new ScenarioContext(ScenarioType.AddTask);
+            //_contextRepository. Типо м б добавить? и в контекст надо еще юзер ID обавлять? или откуда он там появится?
+            await ProcessScenario(scenarioContext, update, ct);
+          /*  if (update.Message is null || update.Message.Text is null || update.Message.From is null) throw new ArgumentNullException();
             var user = await _userService.GetUser(update.Message.From.Id, ct);
             var task = update.Message.Text.Trim();
             task = task.Remove(0, "/addtask".Length).Trim();
@@ -277,7 +330,7 @@ namespace Interactive_Menu.TelegramBot
             {
                 await _toDoService.Add(user, task, ct);
                 await botClient.SendMessage(update.Message.Chat, $"Добавлена задача `{task}`", ParseMode.Markdown, cancellationToken: ct);
-            }
+            }*/
         }
 
         private static Task OnExitCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)

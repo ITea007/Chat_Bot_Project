@@ -6,6 +6,14 @@ using System.Threading.Tasks;
 
 namespace Interactive_Menu.TelegramBot.Scenarios
 {
+    //для получения результата выполнения сценария
+    enum ScenarioResult
+    {
+        Transition, // - Переход к следующему шагу. Сообщение обработано, но сценарий еще не завершен
+        Completed   // - Сценарий завершен
+    }
+
+
     //В нем будем хранить все поддерживаемые сценарии
     enum ScenarioType
     {
@@ -23,6 +31,7 @@ namespace Interactive_Menu.TelegramBot.Scenarios
         public ScenarioContext(ScenarioType scenario)
         {
             CurrentScenario = scenario;
+            Data = new Dictionary<string, object>();
         }
     }
 }

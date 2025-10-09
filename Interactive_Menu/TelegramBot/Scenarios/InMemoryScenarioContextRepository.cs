@@ -6,24 +6,39 @@ using System.Threading.Tasks;
 
 namespace Interactive_Menu.TelegramBot.Scenarios
 {
-    //В качестве хранилища использовать Dictionary<long, ScenarioContext>
+    
 
     internal class InMemoryScenarioContextRepository : IScenarioContextRepository
     {
+        //В качестве хранилища использовать Dictionary<long, ScenarioContext>
+
+        private Dictionary<long, ScenarioContext> _scenarioContextDictionary = new Dictionary<long, ScenarioContext>();
+
         //Получить контекст пользователя
+        //Добавить async await 
         public Task<ScenarioContext?> GetContext(long userId, CancellationToken ct)
         {
-            throw new NotImplementedException();
+            ScenarioContext? context = _scenarioContextDictionary.GetValueOrDefault(userId);
+            return Task.FromResult(context);
         }
         //Сбросить (очистить) контекст пользователя
         public Task ResetContext(long userId, CancellationToken ct)
         {
-            throw new NotImplementedException();
+            _scenarioContextDictionary.Remove(userId);
+            return Task.CompletedTask;
         }
         //Задать контекст пользователя
         public Task SetContext(long userId, ScenarioContext context, CancellationToken ct)
         {
-            throw new NotImplementedException();
+            ScenarioContext? value;
+            if (_scenarioContextDictionary.TryGetValue(userId, out value))
+            {
+                if (!value.Equals(context))
+                    _scenarioContextDictionary[userId] = context;
+            }
+            else
+                _scenarioContextDictionary.Add(userId, context);
+            return Task.CompletedTask;
         }
     }
 }

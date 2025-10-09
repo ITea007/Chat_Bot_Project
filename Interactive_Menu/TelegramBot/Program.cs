@@ -1,6 +1,7 @@
 ﻿using Interactive_Menu;
 using Interactive_Menu.Core.Services;
 using Interactive_Menu.Infrastructure.DataAccess;
+using Interactive_Menu.TelegramBot.Scenarios;
 using System;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
@@ -35,7 +36,11 @@ namespace Interactive_Menu.TelegramBot
             var toDoRepository = new FileToDoRepository("filerep");
             var toDoService = new ToDoService(toDoRepository);
             var toDoReportService = new ToDoReportService(toDoService);
-            var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService);
+            var scenarioContextRepository = new InMemoryScenarioContextRepository();
+            var scenarios = new List<IScenario>();
+            scenarios.Add(new AddTaskScenario(userService, toDoService));
+
+            var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService, scenarios, scenarioContextRepository);
             try
             {
                 await botClient.SetMyCommands(handler.CommandsBeforeRegistration, cancellationToken:ct);

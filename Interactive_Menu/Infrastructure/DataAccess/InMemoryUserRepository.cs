@@ -20,12 +20,14 @@ namespace Interactive_Menu.Infrastructure.DataAccess
 
         public Task<ToDoUser?> GetUser(Guid userId, CancellationToken ct)
         {
-            return Task.FromResult(_users.Where(i => i.UserId == userId).FirstOrDefault());
+            var user = _users.Where(i => i.UserId == userId).FirstOrDefault();
+            return Task.FromResult(user);
         }
 
         public Task<ToDoUser?> GetUserByTelegramUserId(long telegramUserId, CancellationToken ct)
         {
-            return Task.FromResult(_users.Where(i => i.TelegramUserId == telegramUserId).FirstOrDefault());
+            var user = _users.Where(i => i.TelegramUserId == telegramUserId).FirstOrDefault();
+            return Task.FromResult(user);
         }
     }
 }

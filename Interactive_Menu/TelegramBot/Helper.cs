@@ -16,7 +16,7 @@ namespace Interactive_Menu.TelegramBot
             ResizeKeyboard = true,
         };
         internal ReplyKeyboardMarkup _keyboardAfterRegistration = new ReplyKeyboardMarkup(
-            new KeyboardButton[] { "/showalltasks", "/showtasks", "/report" })
+            new KeyboardButton[] { "/addtask", "/showalltasks", "/showtasks", "/report" })
         {
             ResizeKeyboard = true,
         };
