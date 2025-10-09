@@ -40,12 +40,12 @@ namespace Interactive_Menu.TelegramBot
             var helper = new Helper();
             var scenarios = new List<IScenario>();
             scenarios.Add(new AddTaskScenario(userService, toDoService, helper));
-            
 
             var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService, scenarios, scenarioContextRepository, helper);
             try
             {
                 await botClient.SetMyCommands(handler.CommandsBeforeRegistration, cancellationToken:ct);
+                //await botClient.Set
                 handler.OnHandleEventStarted += (message, telegramId) => { Console.WriteLine($"Началась обработка сообщения '{message}' от '{telegramId}'"); };
                 handler.OnHandleEventCompleted += (message, telegramId) => { Console.WriteLine($"Закончилась обработка сообщения '{message}' от '{telegramId}'"); };
                 botClient.StartReceiving(handler, cancellationToken: ct);

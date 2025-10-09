@@ -37,7 +37,6 @@ namespace Interactive_Menu.TelegramBot
         public event MessageEventHandler? OnHandleEventStarted;
         public event MessageEventHandler? OnHandleEventCompleted;
 
-
         public List<BotCommand> CommandsAfterRegistration { get; } = new List<BotCommand> {
                     { new BotCommand("/start", "Начинает работу с ботом") }, { new BotCommand("/help", "Показывает справку по командам") },
                     { new BotCommand("/info", "Показывает информацию по боту") }, { new BotCommand("/addtask", "Добавляет задачу")},
@@ -161,7 +160,7 @@ namespace Interactive_Menu.TelegramBot
             var user = await _userService.GetUser(update.Message.From.Id, ct);
             if (user is null) throw new ArgumentNullException();
             await _contextRepository.ResetContext(user.TelegramUserId, ct);
-            await botClient.SendMessage(update.Message.Chat, $"Секущий сценарий отменен", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
+            await botClient.SendMessage(update.Message.Chat, $"Текущий сценарий отменен", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
         }
 
         private async Task ExecuteCommand(ITelegramBotClient botClient, Update update, string command, CancellationToken ct)
