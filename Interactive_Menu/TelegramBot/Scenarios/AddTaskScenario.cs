@@ -50,8 +50,8 @@ namespace Interactive_Menu.TelegramBot.Scenarios
 
         private async Task<ScenarioResult> OnUserStep(ITelegramBotClient bot, ScenarioContext context, Update update, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException();
-            if (update.Message.From is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
             var toDoUser = await _userService.GetUser(update.Message.From.Id, ct);
             if (toDoUser is null) throw new UserNotFoundException(update.Message.From.Id);
             context.Data.Add("User", toDoUser);
@@ -62,8 +62,8 @@ namespace Interactive_Menu.TelegramBot.Scenarios
 
         private async Task<ScenarioResult> OnNameStep(ITelegramBotClient bot, ScenarioContext context, Update update, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException();
-            if (update.Message.Text is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.Text is null) throw new ArgumentNullException(nameof(update.Message.Text));
             context.Data.Add("Name", update.Message.Text.Trim());
             await bot.SendMessage(update.Message.Chat.Id, $"Введите срок выполнения задачи в формате dd.MM.yyyy", replyMarkup: _helper._cancelKeyboard, cancellationToken: ct);
             //Попробовать добавить сюда выбор даты из календаря в телеге
@@ -73,8 +73,8 @@ namespace Interactive_Menu.TelegramBot.Scenarios
 
         private async Task<ScenarioResult> OnDeadlineStep(ITelegramBotClient bot, ScenarioContext context, Update update, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException();
-            if (update.Message.Text is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.Text is null) throw new ArgumentNullException(nameof(update.Message.Text));
             if (DateTime.TryParseExact(update.Message.Text.Trim(), "dd.MM.yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime deadline))
             {
                 context.Data.Add("Deadline", deadline);
@@ -84,7 +84,7 @@ namespace Interactive_Menu.TelegramBot.Scenarios
                 if (userObject is ToDoUser user && nameObject is string name)
                 {
                     await _toDoService.Add(user, name, deadline, ct);
-                    await bot.SendMessage(update.Message.Chat.Id, $"Задача '{update.Message.Text}' добавлена.", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
+                    await bot.SendMessage(update.Message.Chat.Id, $"Задача '{name}' добавлена.", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
                     return ScenarioResult.Completed;
                 }
                 else throw new InvalidOperationException("User object has incorrect type.");

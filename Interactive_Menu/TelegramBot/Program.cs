@@ -44,8 +44,9 @@ namespace Interactive_Menu.TelegramBot
             var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService, scenarios, scenarioContextRepository, helper);
             try
             {
-                await botClient.SetMyCommands(handler.CommandsBeforeRegistration, cancellationToken:ct);
-                //await botClient.Set
+                //await botClient.SetMyCommands(handler.CommandsBeforeRegistration, cancellationToken:ct);
+                //await botClient.SendMessage(update.Message.Chat, "Вы не зарегистрированы. Нажмите /start для начала.", replyMarkup: _helper._keyboardBeforeRegistration, cancellationToken: ct);
+
                 handler.OnHandleEventStarted += (message, telegramId) => { Console.WriteLine($"Началась обработка сообщения '{message}' от '{telegramId}'"); };
                 handler.OnHandleEventCompleted += (message, telegramId) => { Console.WriteLine($"Закончилась обработка сообщения '{message}' от '{telegramId}'"); };
                 botClient.StartReceiving(handler, cancellationToken: ct);

@@ -12,7 +12,7 @@ namespace Interactive_Menu.TelegramBot.Scenarios
     {
         //В качестве хранилища использовать Dictionary<long, ScenarioContext>
 
-        private Dictionary<long, ScenarioContext> _scenarioContextDictionary = new Dictionary<long, ScenarioContext>();
+        private readonly Dictionary<long, ScenarioContext> _scenarioContextDictionary = new Dictionary<long, ScenarioContext>();
 
         //Получить контекст пользователя
         //Добавить async await 
