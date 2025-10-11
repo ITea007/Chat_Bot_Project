@@ -1,5 +1,7 @@
 ﻿using Interactive_Menu.Core.Entities;
+using Interactive_Menu.Core.Exceptions;
 using Interactive_Menu.Core.Services;
+using Interactive_Menu.TelegramBot.Scenarios;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using System.Xml.Xsl;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
@@ -23,14 +26,17 @@ namespace Interactive_Menu.TelegramBot
         private IUserService _userService;
         private ToDoService _toDoService;
         private IToDoReportService _toDoReportService;
-        private Helper _helper = new Helper();
+        private Helper _helper;
+        private bool _isTaskCountLimitSet { get; set; } = true;
+        private bool _isTaskLengthLimitSet { get; set; } = true;
+        private IEnumerable<IScenario> _scenarios;
+        private IScenarioContextRepository _contextRepository;
+        private ITelegramBotClient _bot;
 
         public delegate void MessageEventHandler(string message, long telegramId);
         public event MessageEventHandler? OnHandleEventStarted;
         public event MessageEventHandler? OnHandleEventCompleted;
 
-        private bool _isTaskCountLimitSet { get; set; } = true;
-        private bool _isTaskLengthLimitSet { get; set; } = true;
         public List<BotCommand> CommandsAfterRegistration { get; } = new List<BotCommand> {
                     { new BotCommand("/start", "Начинает работу с ботом") }, { new BotCommand("/help", "Показывает справку по командам") },
                     { new BotCommand("/info", "Показывает информацию по боту") }, { new BotCommand("/addtask", "Добавляет задачу")},
@@ -45,31 +51,80 @@ namespace Interactive_Menu.TelegramBot
                     { new BotCommand("/info", "Показывает информацию по боту")  }
                 };
 
-        public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService, IToDoReportService toDoReportService)
+        public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService, 
+            IToDoReportService toDoReportService, IEnumerable<IScenario> scenarios, IScenarioContextRepository contextRepository, Helper helper)
         {
+            _bot = botClient;
             _userService = userService;
             _toDoService = (ToDoService)toDoService;
             _toDoReportService = toDoReportService;
+            _scenarios = scenarios;
+            _contextRepository = contextRepository;
+            _helper = helper;
         }
+
+        //Возвращает соответствующий сценарий. Если сценарий не найден, то выбрасывает исключение ScenarioNotFoundException.
+        public Task<IScenario> GetScenario(ScenarioType scenario)
+        {
+            var output = _scenarios.Where(s => s.CanHandle(scenario)).FirstOrDefault();
+            if (output != null)
+                return Task.FromResult(output);
+            else
+                throw new ScenarioNotFoundException(scenario);
+        }
+
+        public async Task ProcessScenario(ScenarioContext context, Update update, CancellationToken ct)
+        {
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+
+            var scenario = await GetScenario(context.CurrentScenario);
+            if (await scenario.HandleMessageAsync(_bot, context, update, ct) == ScenarioResult.Completed)
+            {
+                await _contextRepository.ResetContext(update.Message.From.Id, ct);
+            } else 
+            {
+               await _contextRepository.SetContext(update.Message.From.Id, context, ct);
+            }
+        }
+
+
+
 
         public async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
             try
             {
-                if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
+                if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+                if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
                 if (update.Message.Text != null)
                 {
-                    OnHandleEventStarted?.Invoke(update.Message.Text, update.Message.From.Id); 
+                    OnHandleEventStarted?.Invoke(update.Message.Text, update.Message.From.Id);
                     await botClient.SendMessage(update.Message.Chat, $"Получил '{update.Message.Text}'", ParseMode.Markdown, cancellationToken: ct);
+                    var command = update.Message.Text.Trim().ToLower();
+                    var trimmedCommand = command.Split(' ', 2)[0];
                     var user = await _userService.GetUser(update.Message.From.Id, ct);
-                     if (update.Message.Text != "/start" && user == null)
+                    if (update.Message.Text != "/start" && user == null)
                     {
                         await botClient.SetMyCommands(CommandsBeforeRegistration, cancellationToken: ct);
                         await botClient.SendMessage(update.Message.Chat, "Вы не зарегистрированы. Нажмите /start для начала.", replyMarkup: _helper._keyboardBeforeRegistration, cancellationToken: ct);
                     }
 
-                    var command = update.Message.Text.Trim().ToLower();
-                    var trimmedCommand = command.Split(' ', 2)[0];
+                    // получение ScenarioContext через IScenarioContextRepository перед обработкой команд.
+                    var context = await _contextRepository.GetContext(update.Message.From.Id, ct);
+                    if (context is not null)
+                    {
+                        if (trimmedCommand == "/cancel")
+                        {
+                            await OnCancelCommand(botClient, update, ct);
+                            OnHandleEventCompleted?.Invoke(update.Message.Text, update.Message.From.Id);
+                            return;
+                        }
+                        //ЕСЛИ ScenarioContext найден, ТО вызвать метод ProcessScenario и завершить обработку
+                        await ProcessScenario(context, update, ct);
+                        OnHandleEventCompleted?.Invoke(update.Message.Text, update.Message.From.Id);
+                        return;
+                    }
 
                     if (CommandsAfterRegistration.Any(i => i.Command == trimmedCommand) && _isTaskCountLimitSet && _isTaskLengthLimitSet)
                     {
@@ -92,7 +147,6 @@ namespace Interactive_Menu.TelegramBot
                 {
                     await botClient.SendMessage(update.Message.Chat, "Получил пустой текст.", cancellationToken: ct);
                 }
-
             }
             catch (Exception Ex)
             {
@@ -104,9 +158,20 @@ namespace Interactive_Menu.TelegramBot
             }
         }
 
+        private async Task OnCancelCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
+        {
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            var user = await _userService.GetUser(update.Message.From.Id, ct);
+            if (user is null) throw new UserNotFoundException(update.Message.From.Id);
+            await _contextRepository.ResetContext(user.TelegramUserId, ct);
+            await botClient.SendMessage(update.Message.Chat, $"Текущий сценарий отменен", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
+        }
+
         private async Task ExecuteCommand(ITelegramBotClient botClient, Update update, string command, CancellationToken ct)
         {
-            if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
             if (await _userService.GetUser(update.Message.From.Id, ct) != null)
             {
                 await botClient.SetMyCommands(CommandsAfterRegistration, cancellationToken: ct);
@@ -116,7 +181,7 @@ namespace Interactive_Menu.TelegramBot
                     case "/help": await OnHelpCommand(botClient, update, ct); break;
                     case "/info": await OnInfoCommand(botClient, update, ct); break;
                     //case "/exit": await OnExitCommand(botClient, update, ct); break;
-                    case "/addtask": await OnAddTaskCommand(botClient, update, ct); break;
+                    case "/addtask": await OnAddTaskCommand(update, ct); break;
                     case "/showtasks": await OnShowTasksCommand(botClient, update, ct); break;
                     case "/removetask": await OnRemoveTaskCommand(botClient, update, ct); break;
                     case "/showalltasks": await OnShowAllTasksCommand(botClient, update, ct); break;
@@ -125,7 +190,10 @@ namespace Interactive_Menu.TelegramBot
                     case "/find": await OnFindCommand(botClient, update, ct); break;
                     default: await botClient.SendMessage(update.Message.Chat, "Ошибка обработки команды.", cancellationToken: ct); break;
                 }
-                await botClient.SendMessage(update.Message.Chat, "Выберите команду:", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
+                if (command != "/addtask")
+                {
+                    await botClient.SendMessage(update.Message.Chat, "Выберите команду:", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
+                }
             } else
             {
                 await botClient.SetMyCommands(CommandsBeforeRegistration, cancellationToken: ct);
@@ -155,7 +223,9 @@ namespace Interactive_Menu.TelegramBot
         /// <param name="update"></param>
         private async Task OnFindCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null || update.Message.Text is null || update.Message.From is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.Text is null) throw new ArgumentNullException(nameof(update.Message.Text));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
             var task = update.Message.Text.Trim();
             string namePrefix = task.Remove(0, "/find".Length).Trim();
             var user = await _userService.GetUser(update.Message.From.Id, ct);
@@ -183,7 +253,8 @@ namespace Interactive_Menu.TelegramBot
         /// <param name="update"></param>
         private async Task OnReportCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
             var user = await _userService.GetUser(update.Message.From.Id, ct);
             if (user != null)
             {
@@ -196,7 +267,8 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnCompleteTaskCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null || update.Message.Text is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.Text is null) throw new ArgumentNullException(nameof(update.Message.Text));
             var task = update.Message.Text.Trim();
             task = task.Remove(0, "/completetask".Length).Trim();
             Guid taskId = new Guid(task);
@@ -207,7 +279,8 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnShowAllTasksCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
             var user = await _userService.GetUser(update.Message.From.Id, ct);
             if (user != null)
             {
@@ -227,7 +300,9 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnRemoveTaskCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null || update.Message.Text is null || update.Message.From is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.Text is null) throw new ArgumentNullException(nameof(update.Message.Text));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
             var task = update.Message.Text.Trim();
             task = task.Remove(0, "/removetask".Length).Trim();
             Guid taskId = new Guid(task);
@@ -245,7 +320,8 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnShowTasksCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
             var user = await _userService.GetUser(update.Message.From.Id, ct);
             if (user != null)
             {
@@ -267,17 +343,13 @@ namespace Interactive_Menu.TelegramBot
             }
         }
 
-        private async Task OnAddTaskCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
+        private async Task OnAddTaskCommand(Update update, CancellationToken ct)
         {
-            if (update.Message is null || update.Message.Text is null || update.Message.From is null) throw new ArgumentNullException();
-            var user = await _userService.GetUser(update.Message.From.Id, ct);
-            var task = update.Message.Text.Trim();
-            task = task.Remove(0, "/addtask".Length).Trim();
-            if (user != null)
-            {
-                await _toDoService.Add(user, task, ct);
-                await botClient.SendMessage(update.Message.Chat, $"Добавлена задача `{task}`", ParseMode.Markdown, cancellationToken: ct);
-            }
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            //При получении команды / addtask создать ScenarioContext c ScenarioType.AddTask и вызвать метод ProcessScenario
+            var scenarioContext = new ScenarioContext(ScenarioType.AddTask, update.Message.From.Id);
+            await ProcessScenario(scenarioContext, update, ct);
         }
 
         private static Task OnExitCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
@@ -289,10 +361,11 @@ namespace Interactive_Menu.TelegramBot
         private async Task OnInfoCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
             string newlineSymbol = Environment.NewLine;
-
-            if (update.Message is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
             StringBuilder outputBuilder = new StringBuilder();
             outputBuilder.AppendLine($"{newlineSymbol}" +
+                                $"*  Текущая версия программы 10.0.  Дата создания 09-10-2025{newlineSymbol}" +
+                                $"   Реализована работа cо сценариями и команда отмены сценария /cancel (ДЗ 11) {newlineSymbol}" +
                                 $"*  Текущая версия программы 9.0.  Дата создания 24-09-2025{newlineSymbol}" +
                                 $"   Реализована работа c файлами (ДЗ 10) {newlineSymbol}" +
                                 $"*  Версия программы 8.0.  Дата создания 22-09-2025{newlineSymbol}" +
@@ -318,7 +391,8 @@ namespace Interactive_Menu.TelegramBot
         private async Task OnHelpCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
             string newlineSymbol = Environment.NewLine;
-            if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
             StringBuilder outputBuilder = new StringBuilder();
             outputBuilder.Append(
                 "Cправка по программе:" +
@@ -329,6 +403,7 @@ namespace Interactive_Menu.TelegramBot
             );
             if (await _userService.GetUser(update.Message.From.Id, ct) != null)
                 outputBuilder.AppendLine(
+                    $"{newlineSymbol}Команда /cancel: Отменяет текущий сценарий." +
                     $"{newlineSymbol}Команда /report: Отображает краткую статистику по текущим задачам." +
                     $"{newlineSymbol}Команда /find: Отображает все задачи пользователя, которые начинаются на заданное слово. Например, команда /find Имя веведет все " +
                     $"команды, начинающиеся на Имя" +
@@ -347,7 +422,8 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnStartCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
             if (await _userService.GetUser(update.Message.From.Id, ct) != null)
             {
                 await botClient.SetMyCommands(CommandsAfterRegistration, cancellationToken: ct);
@@ -376,7 +452,8 @@ namespace Interactive_Menu.TelegramBot
         /// </summary>
         private async Task SetTaskCountLimit(ITelegramBotClient botClient, Update update, string command, CancellationToken ct)
         {
-            if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
             _toDoService.TaskCountLimit = ParseAndValidateInt(command, _toDoService.MinTaskCountLimit, _toDoService.MaxTaskCountLimit);
             _isTaskCountLimitSet = true;
             await botClient.SendMessage(update.Message.Chat, $"{update.Message.From.Username}, установлено максимальное количество задач: {_toDoService.TaskCountLimit}", cancellationToken: ct);
@@ -389,7 +466,8 @@ namespace Interactive_Menu.TelegramBot
         /// </summary>
         private async Task SetTaskLengthLimit(ITelegramBotClient botClient, Update update, string command, CancellationToken ct)
         {
-            if (update.Message is null || update.Message.From is null) throw new ArgumentNullException();
+            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
             _toDoService.TaskLengthLimit = ParseAndValidateInt(command, _toDoService.MinTaskLengthLimit, _toDoService.MaxTaskLengthLimit);
             _isTaskLengthLimitSet = true;
             await botClient.SendMessage(update.Message.Chat, $"{update.Message.From.Username}, установлена максимальная длина задачи: {_toDoService.TaskLengthLimit}", cancellationToken: ct);

@@ -20,21 +20,24 @@ namespace Interactive_Menu.Infrastructure.DataAccess
 
     internal class FileToDoRepository : IToDoRepository
     {
-        private string _directory;
-        private char _directorySeparator = Path.DirectorySeparatorChar;
+        private readonly string _directory;
+        private readonly char _directorySeparator = Path.DirectorySeparatorChar;
+        private readonly string _indexFilePath;
+
         private record UserRecord(Guid UserId, Guid Id);
 
         public FileToDoRepository(string directoryName)
         {
             _directory = Directory.Exists(directoryName) ? directoryName : Directory.CreateDirectory(directoryName).Name;
+            _indexFilePath = Path.Combine(_directory, "index.json");
         }
 
         private async Task GenerateNewIndexJSON(CancellationToken ct)
         {
-            List<UserRecord> records = new List<UserRecord>();
+            var userRecords = new List<UserRecord>();
             var directories = Directory.EnumerateDirectories(_directory);
             await using FileStream writeStream = new FileStream(
-                _directory + _directorySeparator + "index.json",
+                _indexFilePath,
                 FileMode.Create,
                 FileAccess.Write,
                 FileShare.None
@@ -49,41 +52,39 @@ namespace Interactive_Menu.Infrastructure.DataAccess
                     Guid toDoItemId;
                     if (Guid.TryParse(arr[1], out userId) && Guid.TryParse(arr[2].Replace(".json", ""), out toDoItemId))
                     {
-                        records.Add(new UserRecord(userId, toDoItemId));
+                        userRecords.Add(new UserRecord(userId, toDoItemId));
                         //Console.WriteLine($"Added to index.json UserId: {userId} ToDoItemId: {toDoItemId} as {(userId, toDoItemId)}");
                     }
                 }
             }
-            await JsonSerializer.SerializeAsync(writeStream, records, cancellationToken: ct);
+            await JsonSerializer.SerializeAsync(writeStream, userRecords, cancellationToken: ct);
         }
 
         public async Task Add(ToDoItem item, CancellationToken ct)
         {
-            List<UserRecord>? records = new List<UserRecord>();
-            var userRecord = new UserRecord(item.User.UserId, item.Id);
-            var folderName = $"{item.User.UserId}";
-            var fileName = $"{item.Id}.json";
-            var fullFileName = _directory + _directorySeparator + folderName + _directorySeparator + fileName;
-            if (!Directory.Exists(_directory + _directorySeparator + folderName))
-                Directory.CreateDirectory(_directory + _directorySeparator + folderName);
+            var fullFileName = Path.Combine(_directory, $"{item.User.UserId}", $"{item.Id}.json");
+            var folder = Path.Combine(_directory, $"{item.User.UserId}");
+            if (!Directory.Exists(folder))
+                Directory.CreateDirectory(folder);
             await using FileStream createStream = File.Create(fullFileName);
             await JsonSerializer.SerializeAsync(createStream, item, cancellationToken: ct);
             //Console.WriteLine($"Задача {item.Name} - {item.CreatedAt} - записана в файл {folderName + _directorySeparator + fileName}");
-            if (!File.Exists(_directory + _directorySeparator + "index.json"))
+            if (!File.Exists(_indexFilePath))
                 await GenerateNewIndexJSON(ct);
             else
             {
-                await using FileStream readStream = File.OpenRead(_directory + _directorySeparator + "index.json");
+                List<UserRecord>? records = new List<UserRecord>();
+                await using FileStream readStream = File.OpenRead(_indexFilePath);
                 records = await JsonSerializer.DeserializeAsync<List<UserRecord>>(readStream, cancellationToken: ct);
                 readStream.Close();
                 if (records is null)
                 {
-                    records = new List<UserRecord> { userRecord };
+                    records = new List<UserRecord> { new UserRecord(item.User.UserId, item.Id) };
                 } else
                 {
-                    records.Add(userRecord);
+                    records.Add(new UserRecord(item.User.UserId, item.Id));
                 }
-                await using FileStream writeStream = File.Create(_directory + _directorySeparator + "index.json");
+                await using FileStream writeStream = File.Create(_indexFilePath);
                 await JsonSerializer.SerializeAsync(writeStream, records, cancellationToken: ct);
             }
             //Console.WriteLine($"Связка {(item.User.UserId, item.Id)} - записана в файл {_directory + _directorySeparator}index.json");
@@ -91,29 +92,30 @@ namespace Interactive_Menu.Infrastructure.DataAccess
 
         public async Task Delete(Guid id, CancellationToken ct)
         {
-            List<UserRecord>? records = new List<UserRecord>();
-            if (!File.Exists(_directory + _directorySeparator + "index.json"))
+            if (!File.Exists(_indexFilePath))
                 await GenerateNewIndexJSON(ct);
-            if (File.Exists(_directory + _directorySeparator + "index.json"))
+            if (File.Exists(_indexFilePath))
             {
-                await using FileStream readStream = File.OpenRead(_directory + _directorySeparator + "index.json");
+                List<UserRecord>? records = new List<UserRecord>();
+                await using FileStream readStream = File.OpenRead(_indexFilePath);
                 records = await JsonSerializer.DeserializeAsync<List<UserRecord>>(readStream, cancellationToken: ct);
-            }
-            if (records!=null && records.Count != 0)
-            {
-                var userRecord = records.FirstOrDefault(i => i.Id == id);
-                if (userRecord != null)
+                if (records != null && records.Count != 0)
                 {
-                    records.Remove(userRecord);
-                    await using FileStream writeStream = File.Create(_directory + _directorySeparator + "index.json");
-                    await JsonSerializer.SerializeAsync(writeStream, records, cancellationToken: ct);
-                    var userId = userRecord.UserId;
-                    var folderName = $"{userId}";
-                    var fileName = $"{id}.json";
-                    var fullFileName = _directory + _directorySeparator + folderName + _directorySeparator + fileName;
-                    if (File.Exists(fullFileName))
+                    var userRecord = records.FirstOrDefault(i => i.Id == id);
+                    if (userRecord != null)
                     {
-                        File.Delete(fullFileName);
+                        records.Remove(userRecord);
+                        await using FileStream writeStream = File.Create(_indexFilePath);
+                        await JsonSerializer.SerializeAsync(writeStream, records, cancellationToken: ct);
+
+                        var userId = userRecord.UserId;
+                        var folderName = $"{userId}";
+                        var fileName = $"{id}.json";
+                        var fullFileName = Path.Combine(_directory, folderName, fileName);
+                        if (File.Exists(fullFileName))
+                        {
+                            File.Delete(fullFileName);
+                        }
                     }
                 }
             }
@@ -122,7 +124,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
         public async Task<bool> ExistsByName(Guid userId, string name, CancellationToken ct)
         {
             if (name is null) throw new ArgumentNullException();
-            var folderName = _directory + _directorySeparator + $"{userId}";
+            var folderName = Path.Combine(_directory, $"{userId}");
             if (!Directory.Exists(folderName))
                 return false;
             else
@@ -169,7 +171,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
         public async Task<IReadOnlyList<ToDoItem>> GetActiveByUserId(Guid userId, CancellationToken ct)
         {
             List<ToDoItem> toDoItems = new List<ToDoItem>();
-            var folderName = _directory + _directorySeparator + $"{userId}";
+            var folderName = Path.Combine(_directory, $"{userId}");
             if (Directory.Exists(folderName))
             {
                 var files = Directory.GetFiles(folderName);
@@ -197,7 +199,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
         public async Task<IReadOnlyList<ToDoItem>> GetAllByUserId(Guid userId, CancellationToken ct)
         {
             List<ToDoItem> toDoItems = new List<ToDoItem>();
-            var folderName = _directory + _directorySeparator + $"{userId}";
+            var folderName = Path.Combine(_directory, $"{userId}");
             if (Directory.Exists(folderName))
             {
                 var files = Directory.GetFiles(folderName);
@@ -218,10 +220,9 @@ namespace Interactive_Menu.Infrastructure.DataAccess
         {
             item.State = (item.State == ToDoItemState.Active) ? ToDoItemState.Completed : ToDoItemState.Active;
             var folderName = $"{item.User.UserId}";
-            var fileName = $"{item.Id}.json";
-            var fullFileName = _directory + _directorySeparator + folderName + _directorySeparator + fileName;
-            if (!Directory.Exists(_directory + _directorySeparator + folderName))
-                Directory.CreateDirectory(_directory + _directorySeparator + folderName);
+            if (!Directory.Exists(Path.Combine(_directory,folderName)))
+                Directory.CreateDirectory(Path.Combine(_directory, folderName));
+            var fullFileName = Path.Combine(_directory, folderName, $"{item.Id}.json");
             await using FileStream writeStream = File.OpenWrite(fullFileName);
             await JsonSerializer.SerializeAsync(writeStream, item, cancellationToken: ct);
         }

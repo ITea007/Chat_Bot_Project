@@ -1,6 +1,7 @@
 ﻿using Interactive_Menu;
 using Interactive_Menu.Core.Services;
 using Interactive_Menu.Infrastructure.DataAccess;
+using Interactive_Menu.TelegramBot.Scenarios;
 using System;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
@@ -35,10 +36,17 @@ namespace Interactive_Menu.TelegramBot
             var toDoRepository = new FileToDoRepository("filerep");
             var toDoService = new ToDoService(toDoRepository);
             var toDoReportService = new ToDoReportService(toDoService);
-            var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService);
+            var scenarioContextRepository = new InMemoryScenarioContextRepository();
+            var helper = new Helper();
+            var scenarios = new List<IScenario>();
+            scenarios.Add(new AddTaskScenario(userService, toDoService, helper));
+
+            var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService, scenarios, scenarioContextRepository, helper);
             try
             {
-                await botClient.SetMyCommands(handler.CommandsBeforeRegistration, cancellationToken:ct);
+                //await botClient.SetMyCommands(handler.CommandsBeforeRegistration, cancellationToken:ct);
+                //await botClient.SendMessage(update.Message.Chat, "Вы не зарегистрированы. Нажмите /start для начала.", replyMarkup: _helper._keyboardBeforeRegistration, cancellationToken: ct);
+
                 handler.OnHandleEventStarted += (message, telegramId) => { Console.WriteLine($"Началась обработка сообщения '{message}' от '{telegramId}'"); };
                 handler.OnHandleEventCompleted += (message, telegramId) => { Console.WriteLine($"Закончилась обработка сообщения '{message}' от '{telegramId}'"); };
                 botClient.StartReceiving(handler, cancellationToken: ct);
