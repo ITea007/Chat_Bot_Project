@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,10 +13,9 @@ namespace Interactive_Menu.TelegramBot.Scenarios
     {
         //В качестве хранилища использовать Dictionary<long, ScenarioContext>
 
-        private readonly Dictionary<long, ScenarioContext> _scenarioContextDictionary = new Dictionary<long, ScenarioContext>();
+        private readonly ConcurrentDictionary<long, ScenarioContext> _scenarioContextDictionary = new ConcurrentDictionary<long, ScenarioContext>();
 
         //Получить контекст пользователя
-        //Добавить async await 
         public Task<ScenarioContext?> GetContext(long userId, CancellationToken ct)
         {
             ScenarioContext? context = _scenarioContextDictionary.GetValueOrDefault(userId);
@@ -24,7 +24,9 @@ namespace Interactive_Menu.TelegramBot.Scenarios
         //Сбросить (очистить) контекст пользователя
         public Task ResetContext(long userId, CancellationToken ct)
         {
-            _scenarioContextDictionary.Remove(userId);
+            ScenarioContext? context;
+            if (_scenarioContextDictionary.TryGetValue(userId, out context))
+                _scenarioContextDictionary.TryRemove(KeyValuePair.Create(userId, context));
             return Task.CompletedTask;
         }
         //Задать контекст пользователя
@@ -37,7 +39,10 @@ namespace Interactive_Menu.TelegramBot.Scenarios
                     _scenarioContextDictionary[userId] = context;
             }
             else
-                _scenarioContextDictionary.Add(userId, context);
+            {
+                if (!_scenarioContextDictionary.TryAdd(userId, context))
+                    throw new InvalidOperationException($"Unable to add ScenarioContext {context} to the {_scenarioContextDictionary}");
+            }
             return Task.CompletedTask;
         }
     }
