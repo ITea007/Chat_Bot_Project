@@ -1,6 +1,8 @@
 ﻿using Interactive_Menu.Core.Entities;
 using Interactive_Menu.Core.Exceptions;
 using Interactive_Menu.Core.Services;
+using Interactive_Menu.TelegramBot.Dto;
+using Interactive_Menu.TelegramBot.DTO;
 using Interactive_Menu.TelegramBot.Scenarios;
 using System;
 using System.Collections.Generic;
@@ -52,8 +54,9 @@ namespace Interactive_Menu.TelegramBot
                     { new BotCommand("/info", "Показывает информацию по боту")  }
                 };
 
-        public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService, 
-            IToDoReportService toDoReportService, IEnumerable<IScenario> scenarios, IScenarioContextRepository contextRepository, IToDoListService toDoListService, Helper helper)
+        public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService,
+            IToDoReportService toDoReportService, IEnumerable<IScenario> scenarios,
+            IScenarioContextRepository contextRepository, IToDoListService toDoListService, Helper helper)
         {
             _bot = botClient;
             _userService = userService;
@@ -63,6 +66,112 @@ namespace Interactive_Menu.TelegramBot
             _contextRepository = contextRepository;
             _helper = helper;
             _toDoListService = toDoListService;
+        }
+
+        // Метод для обработки CallbackQuery
+        private async Task OnCallbackQuery(Update update, CallbackQuery callbackQuery, CancellationToken ct)
+        {
+            if (callbackQuery.Message is null || callbackQuery.From is null)
+            {
+                await _bot.AnswerCallbackQuery(callbackQuery.Id, "Ошибка обработки запроса", cancellationToken: ct);
+                return;
+            }
+
+            // Проверка регистрации пользователя
+            var user = await _userService.GetUser(callbackQuery.From.Id, ct);
+            if (user is null)
+            {
+                await _bot.AnswerCallbackQuery(callbackQuery.Id, "Вы не зарегистрированы. Используйте /start", cancellationToken: ct);
+                return;
+            }
+
+            // Проверка на активный сценарий
+            var context = await _contextRepository.GetContext(callbackQuery.From.Id, ct);
+            if (context is not null)
+            {
+                await ProcessScenario(context, update, ct);
+                await _bot.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct); // Подтверждаем обработку
+                return;
+            }
+
+            // Обработка callback данных
+            var callbackData = CallbackDto.FromString(callbackQuery.Data ?? "");
+
+            switch (callbackData.Action)
+            {
+                case "show":
+                    await HandleShowListCallback(callbackQuery, ct);
+                    break;
+                case "addlist":
+                    await StartAddListScenario(callbackQuery, ct);
+                    break;
+                case "deletelist":
+                    await StartDeleteListScenario(callbackQuery, ct);
+                    break;
+                case "select":
+                    await HandleListSelectionCallback(callbackQuery, ct);
+                    break;
+                default:
+                    await _bot.AnswerCallbackQuery(callbackQuery.Id, "Неизвестное действие", cancellationToken: ct);
+                    break;
+            }
+
+            await _bot.AnswerCallbackQuery(callbackQuery.Id, cancellationToken: ct); // Всегда подтверждаем обработку
+        }
+
+        private async Task HandleListSelectionCallback(CallbackQuery callbackQuery, CancellationToken ct)
+        {
+            // Ищем активный сценарий для пользователя
+            var context = await _contextRepository.GetContext(callbackQuery.From!.Id, ct);
+            if (context is not null)
+            {
+                await ProcessScenario(context, new Update { CallbackQuery = callbackQuery }, ct);
+            }
+            else
+            {
+                await _bot.AnswerCallbackQuery(callbackQuery.Id, "Нет активного сценария", cancellationToken: ct);
+            }
+        }
+
+        private async Task HandleShowListCallback(CallbackQuery callbackQuery, CancellationToken ct)
+        {
+            //if (callbackQuery.Message is null) throw new ArgumentNullException(nameof(callbackQuery.Message));
+            if (callbackQuery.Message is null)
+                return;
+            var listCallback = ToDoListCallbackDto.FromString(callbackQuery.Data ?? "");
+            var user = await _userService.GetUser(callbackQuery.From.Id, ct);
+
+            if (user is null) return;
+
+            var tasks = await _toDoService.GetByUserIdAndList(user.UserId, listCallback.ToDoListId, ct);
+            var tasksText = new StringBuilder();
+            tasksText.AppendLine("Задачи в списке:");
+
+            if (tasks.Count == 0)
+            {
+                tasksText.AppendLine("Список пуст");
+            }
+            else
+            {
+                foreach (var task in tasks)
+                {
+                    tasksText.AppendLine($"• {task.Name} - {task.Deadline:dd.MM.yyyy} - `{task.Id}`");
+                }
+            }
+
+            await _bot.EditMessageText(callbackQuery.Message.Chat.Id, callbackQuery.Message.MessageId, tasksText.ToString(), ParseMode.Markdown, cancellationToken: ct);
+        }
+
+        private async Task StartAddListScenario(CallbackQuery callbackQuery, CancellationToken ct)
+        {
+            var scenarioContext = new ScenarioContext(ScenarioType.AddList, callbackQuery.From.Id);
+            await ProcessScenario(scenarioContext, new Update { CallbackQuery = callbackQuery }, ct);
+        }
+
+        private async Task StartDeleteListScenario(CallbackQuery callbackQuery, CancellationToken ct)
+        {
+            var scenarioContext = new ScenarioContext(ScenarioType.DeleteList, callbackQuery.From.Id);
+            await ProcessScenario(scenarioContext, new Update { CallbackQuery = callbackQuery }, ct);
         }
 
         //Возвращает соответствующий сценарий. Если сценарий не найден, то выбрасывает исключение ScenarioNotFoundException.
@@ -77,16 +186,21 @@ namespace Interactive_Menu.TelegramBot
 
         public async Task ProcessScenario(ScenarioContext context, Update update, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            if (update.Message?.From is null && update.CallbackQuery?.From is null)
+                return;
+
+            var userId = update.Message?.From?.Id ?? update.CallbackQuery!.From!.Id;
 
             var scenario = await GetScenario(context.CurrentScenario);
-            if (await scenario.HandleMessageAsync(_bot, context, update, ct) == ScenarioResult.Completed)
+            var result = await scenario.HandleMessageAsync(_bot, context, update, ct);
+
+            if (result == ScenarioResult.Completed)
             {
-                await _contextRepository.ResetContext(update.Message.From.Id, ct);
-            } else 
+                await _contextRepository.ResetContext(userId, ct);
+            }
+            else
             {
-               await _contextRepository.SetContext(update.Message.From.Id, context, ct);
+                await _contextRepository.SetContext(userId, context, ct);
             }
         }
 
@@ -97,58 +211,12 @@ namespace Interactive_Menu.TelegramBot
         {
             try
             {
-                if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-                if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
-                if (update.Message.Text != null)
+                await (update switch
                 {
-                    OnHandleEventStarted?.Invoke(update.Message.Text, update.Message.From.Id);
-                    await botClient.SendMessage(update.Message.Chat, $"Получил '{update.Message.Text}'", ParseMode.Markdown, cancellationToken: ct);
-                    var command = update.Message.Text.Trim().ToLower();
-                    var trimmedCommand = command.Split(' ', 2)[0];
-                    var user = await _userService.GetUser(update.Message.From.Id, ct);
-                    if (update.Message.Text != "/start" && user == null)
-                    {
-                        await botClient.SetMyCommands(CommandsBeforeRegistration, cancellationToken: ct);
-                        await botClient.SendMessage(update.Message.Chat, "Вы не зарегистрированы. Нажмите /start для начала.", replyMarkup: _helper._keyboardBeforeRegistration, cancellationToken: ct);
-                    }
-
-                    // получение ScenarioContext через IScenarioContextRepository перед обработкой команд.
-                    var context = await _contextRepository.GetContext(update.Message.From.Id, ct);
-                    if (context is not null)
-                    {
-                        if (trimmedCommand == "/cancel")
-                        {
-                            await OnCancelCommand(botClient, update, ct);
-                            OnHandleEventCompleted?.Invoke(update.Message.Text, update.Message.From.Id);
-                            return;
-                        }
-                        //ЕСЛИ ScenarioContext найден, ТО вызвать метод ProcessScenario и завершить обработку
-                        await ProcessScenario(context, update, ct);
-                        OnHandleEventCompleted?.Invoke(update.Message.Text, update.Message.From.Id);
-                        return;
-                    }
-
-                    if (CommandsAfterRegistration.Any(i => i.Command == trimmedCommand) && _isTaskCountLimitSet && _isTaskLengthLimitSet)
-                    {
-                        await ExecuteCommand(botClient, update, trimmedCommand, ct);
-                    }
-                    else if (!_isTaskCountLimitSet)
-                    {
-                        await SetTaskCountLimit(botClient, update, trimmedCommand, ct);
-                    }
-                    else if (!_isTaskLengthLimitSet)
-                    {
-                        await SetTaskLengthLimit(botClient, update, trimmedCommand, ct);
-                    }
-                    else
-                    {
-                        await botClient.SendMessage(update.Message.Chat, "Неизвестная команда.", cancellationToken: ct);
-                    }
-                    OnHandleEventCompleted?.Invoke(update.Message.Text, update.Message.From.Id);
-                } else
-                {
-                    await botClient.SendMessage(update.Message.Chat, "Получил пустой текст.", cancellationToken: ct);
-                }
+                    { Message: { } message } => HandleMessageUpdate(update, ct),
+                    { CallbackQuery: { } callbackQuery } => OnCallbackQuery(update, callbackQuery, ct),
+                    _ => Task.CompletedTask
+                });
             }
             catch (Exception Ex)
             {
@@ -159,11 +227,91 @@ namespace Interactive_Menu.TelegramBot
                 await Console.Out.WriteLineAsync($"Внутреннее исключение: {Ex.InnerException}");
             }
         }
+ 
+
+        private async Task HandleMessageUpdate(Update update, CancellationToken ct)
+        {
+            if (update.Message is null || update.Message.From is null) return;
+
+            if (update.Message.Text != null)
+            {
+                OnHandleEventStarted?.Invoke(update.Message.Text, update.Message.From.Id);
+
+                var command = update.Message.Text.Trim().ToLower();
+                var trimmedCommand = command.Split(' ', 2)[0];
+                var user = await _userService.GetUser(update.Message.From.Id, ct);
+
+                // Проверка регистрации пользователя (кроме команды /start)
+                if (trimmedCommand != "/start" && user == null)
+                {
+                    await _bot.SetMyCommands(CommandsBeforeRegistration, cancellationToken: ct);
+                    await _bot.SendMessage(
+                        update.Message.Chat,
+                        "Вы не зарегистрированы. Нажмите /start для начала.",
+                        replyMarkup: _helper._keyboardBeforeRegistration,
+                        cancellationToken: ct);
+
+                    OnHandleEventCompleted?.Invoke(update.Message.Text, update.Message.From.Id);
+                    return;
+                }
+
+                // Проверка активного сценария
+                var context = await _contextRepository.GetContext(update.Message.From.Id, ct);
+                if (context is not null)
+                {
+                    if (trimmedCommand == "/cancel")
+                    {
+                        await OnCancelCommand(_bot, update, ct);
+                        OnHandleEventCompleted?.Invoke(update.Message.Text, update.Message.From.Id);
+                        return;
+                    }
+
+                    // Если сценарий активен - обрабатываем через ProcessScenario
+                    await ProcessScenario(context, update, ct);
+                    OnHandleEventCompleted?.Invoke(update.Message.Text, update.Message.From.Id);
+                    return;
+                }
+
+                // Обработка команд для зарегистрированных пользователей
+                if (user != null && CommandsAfterRegistration.Any(i => i.Command == trimmedCommand) && _isTaskCountLimitSet && _isTaskLengthLimitSet)
+                {
+                    await ExecuteCommand(_bot, update, trimmedCommand, ct);
+                }
+                // Обработка установки лимитов
+                else if (!_isTaskCountLimitSet)
+                {
+                    await SetTaskCountLimit(_bot, update, trimmedCommand, ct);
+                }
+                else if (!_isTaskLengthLimitSet)
+                {
+                    await SetTaskLengthLimit(_bot, update, trimmedCommand, ct);
+                }
+                // Обработка команд для незарегистрированных пользователей
+                else if (user == null && CommandsBeforeRegistration.Any(i => i.Command == trimmedCommand))
+                {
+                    await ExecuteCommand(_bot, update, trimmedCommand, ct);
+                }
+                else
+                {
+                    await _bot.SendMessage(update.Message.Chat, "Неизвестная команда.", cancellationToken: ct);
+                }
+
+                OnHandleEventCompleted?.Invoke(update.Message.Text, update.Message.From.Id);
+            }
+            else
+            {
+                await _bot.SendMessage(update.Message.Chat, "Получил пустой текст.", cancellationToken: ct);
+                OnHandleEventCompleted?.Invoke("Empty message", update.Message.From.Id);
+            }
+        }
 
         private async Task OnCancelCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            //if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            //if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            if (update.Message is null || update.Message.From is null)
+                return;
+
             var user = await _userService.GetUser(update.Message.From.Id, ct);
             if (user is null) throw new UserNotFoundException(update.Message.From.Id);
             await _contextRepository.ResetContext(user.TelegramUserId, ct);
@@ -172,47 +320,93 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task ExecuteCommand(ITelegramBotClient botClient, Update update, string command, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
-            if (await _userService.GetUser(update.Message.From.Id, ct) != null)
+            //if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            //if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            if (update.Message is null || update.Message.From is null)
+                return;
+
+            var user = await _userService.GetUser(update.Message.From.Id, ct);
+            var isRegistered = user != null;
+
+            // Установка соответствующих команд меню
+            if (isRegistered)
             {
                 await botClient.SetMyCommands(CommandsAfterRegistration, cancellationToken: ct);
-                switch (command)
-                {
-                    case "/start": await OnStartCommand(botClient, update, ct); break;
-                    case "/help": await OnHelpCommand(botClient, update, ct); break;
-                    case "/info": await OnInfoCommand(botClient, update, ct); break;
-                    case "/addtask": await OnAddTaskCommand(update, ct); break;
-                    case "/show": await OnShowCommand(botClient, update, ct); break;
-                    case "/removetask": await OnRemoveTaskCommand(botClient, update, ct); break;
-                    case "/completetask": await OnCompleteTaskCommand(botClient, update, ct); break;
-                    case "/report": await OnReportCommand(botClient, update, ct); break; 
-                    case "/find": await OnFindCommand(botClient, update, ct); break;
-                    default: await botClient.SendMessage(update.Message.Chat, "Ошибка обработки команды.", cancellationToken: ct); break;
-                }
-                if (command != "/addtask")
-                {
-                    await botClient.SendMessage(update.Message.Chat, "Выберите команду:", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
-                }
-            } else
+            }
+            else
             {
                 await botClient.SetMyCommands(CommandsBeforeRegistration, cancellationToken: ct);
-                var reply = _helper._keyboardBeforeRegistration;
-                switch (command)
-                {
-                    case "/start": 
-                        await OnStartCommand(botClient, update, ct); 
-                        reply = _helper._keyboardAfterRegistration; 
-                        await botClient.SetMyCommands(CommandsAfterRegistration, cancellationToken: ct); 
-                        break;
-                    case "/help": await OnHelpCommand(botClient, update, ct); break;
-                    case "/info": await OnInfoCommand(botClient, update, ct); break;
-                    //case "/exit": await OnExitCommand(botClient, update, ct); break;
-                    default: await botClient.SendMessage(update.Message.Chat, "Ошибка обработки команды.", cancellationToken: ct); break;
-                }
-                await botClient.SendMessage(update.Message.Chat, "Выберите команду:", replyMarkup: reply, cancellationToken: ct);
             }
 
+            switch (command)
+            {
+                case "/start":
+                    await OnStartCommand(botClient, update, ct);
+                    break;
+                case "/help":
+                    await OnHelpCommand(botClient, update, ct);
+                    break;
+                case "/info":
+                    await OnInfoCommand(botClient, update, ct);
+                    break;
+                case "/addtask":
+                    if (isRegistered)
+                        await OnAddTaskCommand(update, ct);
+                    else
+                        await botClient.SendMessage(update.Message.Chat, "Эта команда доступна только зарегистрированным пользователям.", cancellationToken: ct);
+                    break;
+                case "/show":
+                    if (isRegistered)
+                        await OnShowCommand(botClient, update, ct);
+                    else
+                        await botClient.SendMessage(update.Message.Chat, "Эта команда доступна только зарегистрированным пользователям.", cancellationToken: ct);
+                    break;
+                case "/removetask":
+                    if (isRegistered)
+                        await OnRemoveTaskCommand(botClient, update, ct);
+                    else
+                        await botClient.SendMessage(update.Message.Chat, "Эта команда доступна только зарегистрированным пользователям.", cancellationToken: ct);
+                    break;
+                case "/completetask":
+                    if (isRegistered)
+                        await OnCompleteTaskCommand(botClient, update, ct);
+                    else
+                        await botClient.SendMessage(update.Message.Chat, "Эта команда доступна только зарегистрированным пользователям.", cancellationToken: ct);
+                    break;
+                case "/report":
+                    if (isRegistered)
+                        await OnReportCommand(botClient, update, ct);
+                    else
+                        await botClient.SendMessage(update.Message.Chat, "Эта команда доступна только зарегистрированным пользователям.", cancellationToken: ct);
+                    break;
+                case "/find":
+                    if (isRegistered)
+                        await OnFindCommand(botClient, update, ct);
+                    else
+                        await botClient.SendMessage(update.Message.Chat, "Эта команда доступна только зарегистрированным пользователям.", cancellationToken: ct);
+                    break;
+                default:
+                    await botClient.SendMessage(update.Message.Chat, "Ошибка обработки команды.", cancellationToken: ct);
+                    break;
+            }
+
+            // Показ соответствующей клавиатуры
+            if (isRegistered && command != "/addtask")
+            {
+                await botClient.SendMessage(
+                    update.Message.Chat,
+                    "Выберите команду:",
+                    replyMarkup: _helper._keyboardAfterRegistration,
+                    cancellationToken: ct);
+            }
+            else if (!isRegistered && command != "/start")
+            {
+                await botClient.SendMessage(
+                    update.Message.Chat,
+                    "Выберите команду:",
+                    replyMarkup: _helper._keyboardBeforeRegistration,
+                    cancellationToken: ct);
+            }
         }
 
         /// <summary>
@@ -223,9 +417,13 @@ namespace Interactive_Menu.TelegramBot
         /// <param name="update"></param>
         private async Task OnFindCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.Text is null) throw new ArgumentNullException(nameof(update.Message.Text));
-            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            //if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            //if (update.Message.Text is null) throw new ArgumentNullException(nameof(update.Message.Text));
+            //if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            if (update.Message is null || update.Message.Text is null|| update.Message.From is null)
+                return;
+
+
             var task = update.Message.Text.Trim();
             string namePrefix = task.Remove(0, "/find".Length).Trim();
             var user = await _userService.GetUser(update.Message.From.Id, ct);
@@ -253,8 +451,10 @@ namespace Interactive_Menu.TelegramBot
         /// <param name="update"></param>
         private async Task OnReportCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            //if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            //if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            if (update.Message is null || update.Message.From is null)
+                return;
             var user = await _userService.GetUser(update.Message.From.Id, ct);
             if (user != null)
             {
@@ -267,8 +467,11 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnCompleteTaskCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.Text is null) throw new ArgumentNullException(nameof(update.Message.Text));
+            //if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            //if (update.Message.Text is null) throw new ArgumentNullException(nameof(update.Message.Text));
+            if (update.Message is null || update.Message.Text is null)
+                return;
+
             var task = update.Message.Text.Trim();
             task = task.Remove(0, "/completetask".Length).Trim();
             Guid taskId = new Guid(task);
@@ -300,9 +503,12 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnRemoveTaskCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.Text is null) throw new ArgumentNullException(nameof(update.Message.Text));
-            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            //if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            //if (update.Message.Text is null) throw new ArgumentNullException(nameof(update.Message.Text));
+            //if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            if (update.Message is null || update.Message.Text is null || update.Message.From is null)
+                return;
+
             var task = update.Message.Text.Trim();
             task = task.Remove(0, "/removetask".Length).Trim();
             Guid taskId = new Guid(task);
@@ -319,43 +525,56 @@ namespace Interactive_Menu.TelegramBot
         }
 
         private async Task OnShowCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
+
+        //При получении команды / show нужно отправлять сообщение с текстом "Выберите список" и кнопками InlineKeyboardButton(см.Демонстрация работы бота)
+        //Для этого нужно использовать класс InlineKeyboardMarkup и добавлять в него кнопки с помощью InlineKeyboardButton.WithCallbackData(string text, string callbackData)
+        //Максимальный размер callbackData составляет 64 символа, поэтому в классах CallbackDto мы будем использовать компактный формат приведение к строкам
+        //Для "📌Без списка" в callbackData пишем ToDoListCallbackDto.ToString().Action = "show", ToDoListId = null
+        //Для остальных списков в callbackData пишем ToDoListCallbackDto.ToString().Action = "show", ToDoListId = Id
+        //Для "🆕Добавить" в callbackData пишем "addlist".Для "❌Удалить" в callbackData пишем "deletelist"
         {
-            //При получении команды / show нужно отправлять сообщение с текстом "Выберите список" и кнопками InlineKeyboardButton(см.Демонстрация работы бота)
-            //Для этого нужно использовать класс InlineKeyboardMarkup и добавлять в него кнопки с помощью InlineKeyboardButton.WithCallbackData(string text, string callbackData)
-            //Максимальный размер callbackData составляет 64 символа, поэтому в классах CallbackDto мы будем использовать компактный формат приведение к строкам
-            //Для "📌Без списка" в callbackData пишем ToDoListCallbackDto.ToString().Action = "show", ToDoListId = null
-            //Для остальных списков в callbackData пишем ToDoListCallbackDto.ToString().Action = "show", ToDoListId = Id
-            //Для "🆕Добавить" в callbackData пишем "addlist".Для "❌Удалить" в callbackData пишем "deletelist"
+            if (update.Message is null || update.Message.From is null) return;
 
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
-
-            /*
             var user = await _userService.GetUser(update.Message.From.Id, ct);
-            if (user != null)
+            if (user is null) return;
+
+            var userLists = await _toDoListService.GetUserLists(user.UserId, ct);
+            var keyboardButtons = new List<InlineKeyboardButton[]>();
+
+            // Кнопка "Без списка"
+            var noListCallback = new ToDoListCallbackDto { Action = "show", ToDoListId = null };
+            keyboardButtons.Add(new[] { InlineKeyboardButton.WithCallbackData("📌 Без списка", noListCallback.ToString()) });
+
+            // Кнопки для каждого списка
+            foreach (var list in userLists)
             {
-                var userId = user.UserId;
-                var tasksList = await _toDoService.GetActiveByUserId(userId, ct);
+                var listCallback = new ToDoListCallbackDto { Action = "show", ToDoListId = list.Id };
+                keyboardButtons.Add(new[] { InlineKeyboardButton.WithCallbackData($"📋 {list.Name}", listCallback.ToString()) });
+            }
 
-                StringBuilder outputBuilder = new StringBuilder();
+            // Кнопки действий
+            keyboardButtons.Add(new[]
+            {
+                InlineKeyboardButton.WithCallbackData("🆕 Добавить", "addlist"),
+                InlineKeyboardButton.WithCallbackData("❌ Удалить", "deletelist")
+            });
 
-                if (tasksList.Count == 0 || !tasksList.Any(i => i.State == ToDoItemState.Active))
-                    outputBuilder.AppendLine("Список текущих задач пуст");
-                else
-                {
-                    outputBuilder.AppendLine("Список текущих задач:");
-                    for (int i = 0; i < tasksList.Count; i++)
-                        if (tasksList[i].State == ToDoItemState.Active)
-                            outputBuilder.AppendLine($"Имя задачи `{tasksList[i].Name}` - {tasksList[i].CreatedAt} - `{tasksList[i].Id}`");
-                }
-                await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), ParseMode.Markdown, cancellationToken: ct);
-            } */
+            var inlineKeyboard = new InlineKeyboardMarkup(keyboardButtons);
+
+            await botClient.SendMessage(
+                update.Message.Chat.Id,
+                "Выберите список:",
+                replyMarkup: inlineKeyboard,
+                cancellationToken: ct);
         }
 
         private async Task OnAddTaskCommand(Update update, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            //if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            //if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            if (update.Message is null || update.Message.From is null)
+                return;
+
             //При получении команды / addtask создать ScenarioContext c ScenarioType.AddTask и вызвать метод ProcessScenario
             var scenarioContext = new ScenarioContext(ScenarioType.AddTask, update.Message.From.Id);
             await ProcessScenario(scenarioContext, update, ct);
@@ -370,9 +589,13 @@ namespace Interactive_Menu.TelegramBot
         private async Task OnInfoCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
             string newlineSymbol = Environment.NewLine;
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            //if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            if (update.Message is null )
+                return;
             StringBuilder outputBuilder = new StringBuilder();
             outputBuilder.AppendLine($"{newlineSymbol}" +
+                                $"*  Текущая версия программы 11.0.  Дата создания 10-11-2025{newlineSymbol}" +
+                                $"   Реализована работа cо списками для задач (ДЗ 12) {newlineSymbol}" +
                                 $"*  Текущая версия программы 10.0.  Дата создания 09-10-2025{newlineSymbol}" +
                                 $"   Реализована работа cо сценариями и команда отмены сценария /cancel (ДЗ 11) {newlineSymbol}" +
                                 $"*  Текущая версия программы 9.0.  Дата создания 24-09-2025{newlineSymbol}" +
@@ -400,8 +623,10 @@ namespace Interactive_Menu.TelegramBot
         private async Task OnHelpCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
             string newlineSymbol = Environment.NewLine;
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            //if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            //if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            if (update.Message is null || update.Message.From is null)
+                return;
             StringBuilder outputBuilder = new StringBuilder();
             outputBuilder.Append(
                 "Cправка по программе:" +
@@ -430,29 +655,45 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task OnStartCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
-            if (await _userService.GetUser(update.Message.From.Id, ct) != null)
+            //if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            //if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            if (update.Message is null || update.Message.From is null)
+                return;
+
+            var existingUser = await _userService.GetUser(update.Message.From.Id, ct);
+
+            if (existingUser != null)
             {
                 await botClient.SetMyCommands(CommandsAfterRegistration, cancellationToken: ct);
-                await botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}. Вы уже зарегистрированы.", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
+                await botClient.SendMessage(
+                    update.Message.Chat,
+                    $"Привет, {update.Message.From.Username}. Вы уже зарегистрированы.",
+                    replyMarkup: _helper._keyboardAfterRegistration,
+                    cancellationToken: ct);
             }
             else if (update.Message.From.Username != null)
             {
-                    await _userService.RegisterUser(update.Message.From.Id, update.Message.From.Username, ct);
-                    await botClient.SetMyCommands(CommandsAfterRegistration, cancellationToken: ct);
-                    await botClient.SendMessage(update.Message.Chat, $"Привет, {update.Message.From.Username}", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
+                await _userService.RegisterUser(update.Message.From.Id, update.Message.From.Username, ct);
+                await botClient.SetMyCommands(CommandsAfterRegistration, cancellationToken: ct);
+                await botClient.SendMessage(
+                    update.Message.Chat,
+                    $"Привет, {update.Message.From.Username}. Регистрация завершена!",
+                    replyMarkup: _helper._keyboardAfterRegistration,
+                    cancellationToken: ct);
             }
-            
 
+            // Проверка и установка лимитов
             if (_toDoService.TaskLengthLimit == -1)
                 _isTaskLengthLimitSet = false;
+
             if (_toDoService.TaskCountLimit == -1)
             {
                 _isTaskCountLimitSet = false;
-                await botClient.SendMessage(update.Message.Chat, $"{update.Message.From.Username}, " +
-                    $"введи максимальное количество задач от {_toDoService.MinTaskCountLimit} до {_toDoService.MaxTaskCountLimit}", cancellationToken: ct);
-            }    
+                await botClient.SendMessage(
+                    update.Message.Chat,
+                    $"{update.Message.From.Username}, введи максимальное количество задач от {_toDoService.MinTaskCountLimit} до {_toDoService.MaxTaskCountLimit}",
+                    cancellationToken: ct);
+            }
         }
 
         /// <summary>
@@ -460,8 +701,10 @@ namespace Interactive_Menu.TelegramBot
         /// </summary>
         private async Task SetTaskCountLimit(ITelegramBotClient botClient, Update update, string command, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            //if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            //if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            if (update.Message is null || update.Message.From is null)
+                return;
             _toDoService.TaskCountLimit = ParseAndValidateInt(command, _toDoService.MinTaskCountLimit, _toDoService.MaxTaskCountLimit);
             _isTaskCountLimitSet = true;
             await botClient.SendMessage(update.Message.Chat, $"{update.Message.From.Username}, установлено максимальное количество задач: {_toDoService.TaskCountLimit}", cancellationToken: ct);
@@ -474,8 +717,10 @@ namespace Interactive_Menu.TelegramBot
         /// </summary>
         private async Task SetTaskLengthLimit(ITelegramBotClient botClient, Update update, string command, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            //if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
+            //if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+            if (update.Message is null || update.Message.From is null)
+                return;
             _toDoService.TaskLengthLimit = ParseAndValidateInt(command, _toDoService.MinTaskLengthLimit, _toDoService.MaxTaskLengthLimit);
             _isTaskLengthLimitSet = true;
             await botClient.SendMessage(update.Message.Chat, $"{update.Message.From.Username}, установлена максимальная длина задачи: {_toDoService.TaskLengthLimit}", cancellationToken: ct);

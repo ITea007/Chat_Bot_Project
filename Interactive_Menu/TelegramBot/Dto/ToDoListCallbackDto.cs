@@ -16,12 +16,24 @@ namespace Interactive_Menu.TelegramBot.Dto
         //Нужно создать ToDoListCallbackDto с Action = action и ToDoListId = toDoListId.
         public static new ToDoListCallbackDto FromString(string input)
         {
-            return new ToDoListCallbackDto();
+            if (string.IsNullOrEmpty(input))
+                return new ToDoListCallbackDto { Action = string.Empty };
+
+            var parts = input.Split('|');
+            var dto = new ToDoListCallbackDto { Action = parts[0] };
+
+            if (parts.Length > 1 && Guid.TryParse(parts[1], out Guid listId))
+            {
+                dto.ToDoListId = listId;
+            }
+
+            return dto;
         }
-        //Переопределить метод.Он должен возвращать $"{base.ToString()}|{ToDoListId}"
+
+        //возвращает $"{base.ToString()}|{ToDoListId}"
         public override string ToString()
         {
-            return $"{base.ToString()}|{ToDoListId}";
+            return ToDoListId.HasValue ? $"{base.ToString()}|{ToDoListId}" : base.ToString();
         }
     }
 }

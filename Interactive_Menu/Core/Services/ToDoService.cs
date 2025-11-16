@@ -86,10 +86,11 @@ namespace Interactive_Menu.Core.Services
         {
             return _toDoRepository.Delete(id,ct);
         }
-
-        public Task<IReadOnlyList<ToDoItem>> GetByUserIdAndList(Guid userId, Guid? listId, CancellationToken ct)
+        //Только активные задачи(незавершенные)
+        public async Task<IReadOnlyList<ToDoItem>> GetByUserIdAndList(Guid userId, Guid? listId, CancellationToken ct)
         {
-            throw new NotImplementedException();
+            var allItems = await _toDoRepository.GetActiveByUserId(userId, ct);
+            return allItems.Where(item => item.List?.Id == listId).ToList();
         }
     }
 }

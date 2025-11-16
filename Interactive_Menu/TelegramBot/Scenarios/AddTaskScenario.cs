@@ -1,6 +1,7 @@
 ﻿using Interactive_Menu.Core.Entities;
 using Interactive_Menu.Core.Exceptions;
 using Interactive_Menu.Core.Services;
+using Interactive_Menu.TelegramBot.Dto;
 using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
@@ -13,7 +14,7 @@ using System.Threading.Tasks;
 using System.Xml.Linq;
 using Telegram.Bot;
 using Telegram.Bot.Types;
-using static System.Runtime.InteropServices.JavaScript.JSType;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Interactive_Menu.TelegramBot.Scenarios
 {
@@ -21,12 +22,14 @@ namespace Interactive_Menu.TelegramBot.Scenarios
     {
         private IUserService _userService;
         private IToDoService _toDoService;
+        private IToDoListService _toDoListService;
         private Helper _helper;
 
-        public AddTaskScenario(IUserService userService, IToDoService toDoService, Helper helper)
+        public AddTaskScenario(IUserService userService, IToDoService toDoService, IToDoListService toDoListService, Helper helper)
         {
             _userService = userService;
             _toDoService = toDoService;
+            _toDoListService = toDoListService;
             _helper = helper;
         }
         public bool CanHandle(ScenarioType scenario)
@@ -49,16 +52,71 @@ namespace Interactive_Menu.TelegramBot.Scenarios
             }
         }
 
+        //Добавить заполнение ToDoList в AddTaskScenario через отдельный шаг
+        //Выбирать список нужно через Inline кнопки(см.Демонстрация работы бота)
+        //Обработка update.CallbackQuery должна быть внутри AddTaskScenario
         private async Task<ScenarioResult> OnToDoListStep(ITelegramBotClient bot, ScenarioContext context, Update update, CancellationToken ct)
         {
-            //Добавить заполнение ToDoList в AddTaskScenario через отдельный шаг
-            //Выбирать список нужно через Inline кнопки(см.Демонстрация работы бота)
-            //Обработка update.CallbackQuery должна быть внутри AddTaskScenario
+            if (update.CallbackQuery is null || update.CallbackQuery.Message is null)
+            {
+                // Если пришло сообщение вместо callback, снова показываем выбор списка
+                if (update.Message?.Chat.Id is long chatId)
+                {
+                    await ShowListSelection(bot, context, chatId, ct);
+                }
+                return ScenarioResult.Transition;
+            }
 
+            var callbackData = ToDoListCallbackDto.FromString(update.CallbackQuery.Data ?? "");
+            if (callbackData.Action != "select")
+                return ScenarioResult.Transition;
 
-            throw new NotImplementedException();
-            return ScenarioResult.Transition;
+            // Получаем данные из контекста
+            var user = context.Data["User"] as ToDoUser;
+            var name = context.Data["Name"] as string;
+            var deadline = context.Data["Deadline"] as DateTime?;
 
+            if (user is null || name is null || !deadline.HasValue)
+            {
+                await bot.SendMessage(
+                    update.CallbackQuery.Message!.Chat.Id,
+                    "Ошибка: данные задачи утеряны. Начните заново.",
+                    replyMarkup: _helper._keyboardAfterRegistration,
+                    cancellationToken: ct);
+                return ScenarioResult.Completed;
+            }
+
+            // Получаем выбранный список
+            ToDoList? selectedList = null;
+            if (callbackData.ToDoListId.HasValue)
+            {
+                selectedList = await _toDoListService.Get(callbackData.ToDoListId.Value, ct);
+            }
+
+            // Создаем задачу
+            try
+            {
+                var task = await _toDoService.Add(user, name, deadline.Value, selectedList, ct);
+                var listName = selectedList?.Name ?? "без списка";
+
+                await bot.SendMessage(
+                    update.CallbackQuery.Message.Chat.Id,
+                    $"✅ Задача '{name}' добавлена в список '{listName}'.",
+                    replyMarkup: _helper._keyboardAfterRegistration,
+                    cancellationToken: ct);
+
+                return ScenarioResult.Completed;
+            }
+            catch (Exception ex)
+            {
+                await bot.SendMessage(
+                    update.CallbackQuery.Message.Chat.Id,
+                    $"❌ Ошибка при добавлении задачи: {ex.Message}",
+                    replyMarkup: _helper._keyboardAfterRegistration,
+                    cancellationToken: ct);
+
+                return ScenarioResult.Completed;
+            }
         }
 
         private async Task<ScenarioResult> OnUserStep(ITelegramBotClient bot, ScenarioContext context, Update update, CancellationToken ct)
@@ -86,28 +144,56 @@ namespace Interactive_Menu.TelegramBot.Scenarios
 
         private async Task<ScenarioResult> OnDeadlineStep(ITelegramBotClient bot, ScenarioContext context, Update update, CancellationToken ct)
         {
-            if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
-            if (update.Message.Text is null) throw new ArgumentNullException(nameof(update.Message.Text));
+            if (update.Message is null || update.Message.Text is null)
+                return ScenarioResult.Transition;
+
             if (DateTime.TryParseExact(update.Message.Text.Trim(), "dd.MM.yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime deadline))
             {
-                context.Data.Add("Deadline", deadline);
-                var userObject = context.Data.Where(i => i.Key == "User").FirstOrDefault().Value;
-                var nameObject = context.Data.Where(i => i.Key == "Name").FirstOrDefault().Value;
+                context.Data["Deadline"] = deadline;
 
-                if (userObject is ToDoUser user && nameObject is string name)
-                {
-                    await _toDoService.Add(user, name, deadline, ct);
-                    await bot.SendMessage(update.Message.Chat.Id, $"Задача '{name}' добавлена.", replyMarkup: _helper._keyboardAfterRegistration, cancellationToken: ct);
-                    return ScenarioResult.Completed;
-                }
-                else throw new InvalidOperationException("User object has incorrect type.");
+                // Переход к выбору списка
+                await ShowListSelection(bot, context, update.Message.Chat.Id, ct);
+                context.CurrentStep = "ToDoList";
+                return ScenarioResult.Transition;
             }
             else
             {
-                await bot.SendMessage(update.Message.Chat.Id, $"Неверный формат! Введите срок выполнения задачи в формате dd.MM.yyyy", replyMarkup: _helper._cancelKeyboard, cancellationToken: ct);
-                context.CurrentStep = "Deadline";
+                await bot.SendMessage(
+                    update.Message.Chat.Id,
+                    $"Неверный формат! Введите срок выполнения задачи в формате dd.MM.yyyy",
+                    replyMarkup: _helper._cancelKeyboard,
+                    cancellationToken: ct);
                 return ScenarioResult.Transition;
             }
+        }
+
+        // Метод для показа выбора списка:
+        private async Task ShowListSelection(ITelegramBotClient bot, ScenarioContext context, long chatId, CancellationToken ct)
+        {
+            var user = context.Data["User"] as ToDoUser;
+            if (user is null) return;
+
+            var userLists = await _toDoListService.GetUserLists(user.UserId, ct);
+            var keyboardButtons = new List<InlineKeyboardButton[]>();
+
+            // Кнопка "Без списка"
+            var noListCallback = new ToDoListCallbackDto { Action = "select", ToDoListId = null };
+            keyboardButtons.Add(new[] { InlineKeyboardButton.WithCallbackData("📌 Без списка", noListCallback.ToString()) });
+
+            // Кнопки для каждого списка
+            foreach (var list in userLists)
+            {
+                var listCallback = new ToDoListCallbackDto { Action = "select", ToDoListId = list.Id };
+                keyboardButtons.Add(new[] { InlineKeyboardButton.WithCallbackData($"📋 {list.Name}", listCallback.ToString()) });
+            }
+
+            var inlineKeyboard = new InlineKeyboardMarkup(keyboardButtons);
+
+            await bot.SendMessage(
+                chatId,
+                "Выберите список для задачи (или 'Без списка'):",
+                replyMarkup: inlineKeyboard,
+                cancellationToken: ct);
         }
     }
 }
