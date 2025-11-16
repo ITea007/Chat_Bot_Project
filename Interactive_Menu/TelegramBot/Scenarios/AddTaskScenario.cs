@@ -43,9 +43,22 @@ namespace Interactive_Menu.TelegramBot.Scenarios
             {
                 case null: return await OnUserStep(bot, context, update, ct);                   
                 case "Name": return await OnNameStep(bot, context, update, ct);
-                case "Deadline":return await OnDeadlineStep(bot, context, update, ct);
+                case "Deadline": return await OnDeadlineStep(bot, context, update, ct);
+                case "ToDoList": return await OnToDoListStep(bot, context, update, ct);
                 default: return ScenarioResult.Completed;
             }
+        }
+
+        private async Task<ScenarioResult> OnToDoListStep(ITelegramBotClient bot, ScenarioContext context, Update update, CancellationToken ct)
+        {
+            //Добавить заполнение ToDoList в AddTaskScenario через отдельный шаг
+            //Выбирать список нужно через Inline кнопки(см.Демонстрация работы бота)
+            //Обработка update.CallbackQuery должна быть внутри AddTaskScenario
+
+
+            throw new NotImplementedException();
+            return ScenarioResult.Transition;
+
         }
 
         private async Task<ScenarioResult> OnUserStep(ITelegramBotClient bot, ScenarioContext context, Update update, CancellationToken ct)

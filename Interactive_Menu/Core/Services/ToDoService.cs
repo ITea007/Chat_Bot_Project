@@ -63,14 +63,14 @@ namespace Interactive_Menu.Core.Services
             return list;
         }
 
-        public async Task<ToDoItem> Add(ToDoUser user, string name, DateTime deadline, CancellationToken ct)
+        public async Task<ToDoItem> Add(ToDoUser user, string name, DateTime deadline, ToDoList? list, CancellationToken ct)
         {
             var listAll = await _toDoRepository.GetAllByUserId(user.UserId, ct);
             if (listAll.Count == TaskCountLimit) throw new TaskCountLimitException(TaskCountLimit);
             if (name.Length > TaskLengthLimit) throw new TaskLengthLimitException(name.Length, TaskLengthLimit);
             if (await _toDoRepository.ExistsByName(user.UserId, name, ct)) throw new DuplicateTaskException(name);
 
-            var task = new ToDoItem(user, name, deadline);
+            var task = new ToDoItem(user, name, deadline, list);
             await _toDoRepository.Add(task, ct);
             return task;
         }
@@ -85,6 +85,11 @@ namespace Interactive_Menu.Core.Services
         public Task Delete(Guid id, CancellationToken ct)
         {
             return _toDoRepository.Delete(id,ct);
+        }
+
+        public Task<IReadOnlyList<ToDoItem>> GetByUserIdAndList(Guid userId, Guid? listId, CancellationToken ct)
+        {
+            throw new NotImplementedException();
         }
     }
 }

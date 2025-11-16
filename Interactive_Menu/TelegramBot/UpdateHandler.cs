@@ -15,6 +15,7 @@ using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Interactive_Menu.TelegramBot
 {
@@ -32,6 +33,7 @@ namespace Interactive_Menu.TelegramBot
         private IEnumerable<IScenario> _scenarios;
         private IScenarioContextRepository _contextRepository;
         private ITelegramBotClient _bot;
+        private IToDoListService _toDoListService;
 
         public delegate void MessageEventHandler(string message, long telegramId);
         public event MessageEventHandler? OnHandleEventStarted;
@@ -40,8 +42,7 @@ namespace Interactive_Menu.TelegramBot
         public List<BotCommand> CommandsAfterRegistration { get; } = new List<BotCommand> {
                     { new BotCommand("/start", "Начинает работу с ботом") }, { new BotCommand("/help", "Показывает справку по командам") },
                     { new BotCommand("/info", "Показывает информацию по боту") }, { new BotCommand("/addtask", "Добавляет задачу")},
-                    { new BotCommand("/showtasks", "Показывает все активные задачи")}, { new BotCommand("/removetask", "Удаляет задачу")}, 
-                    { new BotCommand("/showalltasks", "Показывает все задачи")},
+                    { new BotCommand("/show", "Показывает все активные задачи")}, { new BotCommand("/removetask", "Удаляет задачу")},
                     { new BotCommand("/completetask", "Завершает задачу")}, { new BotCommand("/report", "Выводит отчет по задачам")}, 
                     { new BotCommand("/find", "Ищет задачу") }
                 };
@@ -52,7 +53,7 @@ namespace Interactive_Menu.TelegramBot
                 };
 
         public UpdateHandler(ITelegramBotClient botClient, IUserService userService, IToDoService toDoService, 
-            IToDoReportService toDoReportService, IEnumerable<IScenario> scenarios, IScenarioContextRepository contextRepository, Helper helper)
+            IToDoReportService toDoReportService, IEnumerable<IScenario> scenarios, IScenarioContextRepository contextRepository, IToDoListService toDoListService, Helper helper)
         {
             _bot = botClient;
             _userService = userService;
@@ -61,6 +62,7 @@ namespace Interactive_Menu.TelegramBot
             _scenarios = scenarios;
             _contextRepository = contextRepository;
             _helper = helper;
+            _toDoListService = toDoListService;
         }
 
         //Возвращает соответствующий сценарий. Если сценарий не найден, то выбрасывает исключение ScenarioNotFoundException.
@@ -180,11 +182,9 @@ namespace Interactive_Menu.TelegramBot
                     case "/start": await OnStartCommand(botClient, update, ct); break;
                     case "/help": await OnHelpCommand(botClient, update, ct); break;
                     case "/info": await OnInfoCommand(botClient, update, ct); break;
-                    //case "/exit": await OnExitCommand(botClient, update, ct); break;
                     case "/addtask": await OnAddTaskCommand(update, ct); break;
-                    case "/showtasks": await OnShowTasksCommand(botClient, update, ct); break;
+                    case "/show": await OnShowCommand(botClient, update, ct); break;
                     case "/removetask": await OnRemoveTaskCommand(botClient, update, ct); break;
-                    case "/showalltasks": await OnShowAllTasksCommand(botClient, update, ct); break;
                     case "/completetask": await OnCompleteTaskCommand(botClient, update, ct); break;
                     case "/report": await OnReportCommand(botClient, update, ct); break; 
                     case "/find": await OnFindCommand(botClient, update, ct); break;
@@ -318,10 +318,19 @@ namespace Interactive_Menu.TelegramBot
             }
         }
 
-        private async Task OnShowTasksCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
+        private async Task OnShowCommand(ITelegramBotClient botClient, Update update, CancellationToken ct)
         {
+            //При получении команды / show нужно отправлять сообщение с текстом "Выберите список" и кнопками InlineKeyboardButton(см.Демонстрация работы бота)
+            //Для этого нужно использовать класс InlineKeyboardMarkup и добавлять в него кнопки с помощью InlineKeyboardButton.WithCallbackData(string text, string callbackData)
+            //Максимальный размер callbackData составляет 64 символа, поэтому в классах CallbackDto мы будем использовать компактный формат приведение к строкам
+            //Для "📌Без списка" в callbackData пишем ToDoListCallbackDto.ToString().Action = "show", ToDoListId = null
+            //Для остальных списков в callbackData пишем ToDoListCallbackDto.ToString().Action = "show", ToDoListId = Id
+            //Для "🆕Добавить" в callbackData пишем "addlist".Для "❌Удалить" в callbackData пишем "deletelist"
+
             if (update.Message is null) throw new ArgumentNullException(nameof(update.Message));
             if (update.Message.From is null) throw new ArgumentNullException(nameof(update.Message.From));
+
+            /*
             var user = await _userService.GetUser(update.Message.From.Id, ct);
             if (user != null)
             {
@@ -340,7 +349,7 @@ namespace Interactive_Menu.TelegramBot
                             outputBuilder.AppendLine($"Имя задачи `{tasksList[i].Name}` - {tasksList[i].CreatedAt} - `{tasksList[i].Id}`");
                 }
                 await botClient.SendMessage(update.Message.Chat, outputBuilder.ToString(), ParseMode.Markdown, cancellationToken: ct);
-            }
+            } */
         }
 
         private async Task OnAddTaskCommand(Update update, CancellationToken ct)
@@ -411,7 +420,6 @@ namespace Interactive_Menu.TelegramBot
                     $"{newlineSymbol}\tМаксимальная длина задачи:{(_toDoService.TaskLengthLimit == -1 ? "не задано" : _toDoService.TaskLengthLimit)}" +
                     $"{newlineSymbol}\tМаксимальное количество задач:{(_toDoService.TaskCountLimit == -1 ? "не задано" : _toDoService.TaskCountLimit)}" +
                     $"{newlineSymbol}Команда /showtasks: После ввода команды отображается список всех активных задач." +
-                    $"{newlineSymbol}Команда /showalltasks: После ввода команды отображается список всех задач." +
                     $"{newlineSymbol}Команда /removetask: После ввода команды отображается список задач с номерами. Введите номер задачи для её удаления." +
                     $"{newlineSymbol}Команда /completetask: Используется для завершения задачи. При вводе этой команды с номером задачи " +
                     $"{newlineSymbol}(например, /completetask 0167b785-b830-4d02-b82a-881b0b678034), программа завершает задачу, её статус становится Completed."
