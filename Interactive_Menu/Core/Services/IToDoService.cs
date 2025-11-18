@@ -27,5 +27,8 @@ namespace Interactive_Menu.Core.Services
         Task MarkAsCompleted(Guid id, CancellationToken ct);
         Task Delete(Guid id, CancellationToken ct);
         Task<IReadOnlyList<ToDoItem>> GetByUserIdAndList(Guid userId, Guid? listId, CancellationToken ct);
+
+        Task<ToDoItem?> Get(Guid toDoItemId, CancellationToken ct);
+
     }
 }
