@@ -14,7 +14,7 @@ namespace Interactive_Menu.TelegramBot.Scenarios
 {
     internal class AddListScenario : IScenario
     {
-        internal IUserService _userService;
+        private readonly IUserService _userService;
         internal IToDoListService _toDoListService;
 
         public AddListScenario(IUserService userService, IToDoListService toDoListService) 

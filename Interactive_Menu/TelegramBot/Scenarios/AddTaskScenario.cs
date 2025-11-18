@@ -22,7 +22,7 @@ namespace Interactive_Menu.TelegramBot.Scenarios
     {
         private IUserService _userService;
         private IToDoService _toDoService;
-        private IToDoListService _toDoListService;
+        private readonly IToDoListService _toDoListService;
         private Helper _helper;
 
         public AddTaskScenario(IUserService userService, IToDoService toDoService, IToDoListService toDoListService, Helper helper)
