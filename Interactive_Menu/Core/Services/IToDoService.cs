@@ -23,10 +23,9 @@ namespace Interactive_Menu.Core.Services
         /// <param name="userId">User id</param>
         /// <returns></returns>
         Task<IReadOnlyList<ToDoItem>> GetActiveByUserId(Guid userId, CancellationToken ct);
-        Task<ToDoItem> Add(ToDoUser user, string name, DateTime deadline, CancellationToken ct);
+        Task<ToDoItem> Add(ToDoUser user, string name, DateTime deadline, ToDoList? list, CancellationToken ct);
         Task MarkAsCompleted(Guid id, CancellationToken ct);
         Task Delete(Guid id, CancellationToken ct);
-
+        Task<IReadOnlyList<ToDoItem>> GetByUserIdAndList(Guid userId, Guid? listId, CancellationToken ct);
     }
-
 }

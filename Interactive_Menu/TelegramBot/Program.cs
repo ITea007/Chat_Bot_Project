@@ -10,6 +10,7 @@ using System.Text;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 
 namespace Interactive_Menu.TelegramBot
 {
@@ -28,6 +29,7 @@ namespace Interactive_Menu.TelegramBot
                 await Console.Out.WriteLineAsync("Bot token not found. Please set the TELEGRAM_BOT_TOKEN environment variable.");
                 return;
             }
+            var receiverOptions = new ReceiverOptions{ AllowedUpdates = Array.Empty<UpdateType>() }; // Получать все типы обновлений 
             var cts = new CancellationTokenSource();
             var ct = cts.Token;
             var botClient = new TelegramBotClient(token);
@@ -35,13 +37,17 @@ namespace Interactive_Menu.TelegramBot
             var userService = new UserService(userRepository);
             var toDoRepository = new FileToDoRepository("filerep");
             var toDoService = new ToDoService(toDoRepository);
+            var toDoListRepository = new FileToDoListRepository("todolistrep");
+            var toDoListService = new ToDoListService(toDoListRepository);
             var toDoReportService = new ToDoReportService(toDoService);
             var scenarioContextRepository = new InMemoryScenarioContextRepository();
             var helper = new Helper();
             var scenarios = new List<IScenario>();
-            scenarios.Add(new AddTaskScenario(userService, toDoService, helper));
+            scenarios.Add(new AddTaskScenario(userService, toDoService, toDoListService, helper));
+            scenarios.Add(new AddListScenario(userService, toDoListService));
+            scenarios.Add(new DeleteListScenario(userService, toDoListService, toDoService));
 
-            var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService, scenarios, scenarioContextRepository, helper);
+            var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService, scenarios, scenarioContextRepository, toDoListService, helper);
             try
             {
                 //await botClient.SetMyCommands(handler.CommandsBeforeRegistration, cancellationToken:ct);
@@ -49,7 +55,7 @@ namespace Interactive_Menu.TelegramBot
 
                 handler.OnHandleEventStarted += (message, telegramId) => { Console.WriteLine($"Началась обработка сообщения '{message}' от '{telegramId}'"); };
                 handler.OnHandleEventCompleted += (message, telegramId) => { Console.WriteLine($"Закончилась обработка сообщения '{message}' от '{telegramId}'"); };
-                botClient.StartReceiving(handler, cancellationToken: ct);
+                botClient.StartReceiving(handler, receiverOptions, cancellationToken: ct);
                 var me = await botClient.GetMe();
                 //Продолжаем ждать нажатие клавиши A для завершения программы
                 var waitForAKeyTask = WaitForAKeyAsync(ct, me);

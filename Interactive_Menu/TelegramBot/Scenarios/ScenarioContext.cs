@@ -6,21 +6,6 @@ using System.Threading.Tasks;
 
 namespace Interactive_Menu.TelegramBot.Scenarios
 {
-    //для получения результата выполнения сценария
-    enum ScenarioResult
-    {
-        Transition, // - Переход к следующему шагу. Сообщение обработано, но сценарий еще не завершен
-        Completed   // - Сценарий завершен
-    }
-
-
-    //В нем будем хранить все поддерживаемые сценарии
-    enum ScenarioType
-    {
-        None,
-        AddTask
-    }
-
     //Класс, который будет хранить информацию о контексте(сессии) пользователя
     internal class ScenarioContext
     {
