@@ -226,7 +226,6 @@ namespace Interactive_Menu.TelegramBot
 
         private async Task HandleShowListCallback(CallbackQuery callbackQuery, CancellationToken ct)
         {
-            //if (callbackQuery.Message is null) throw new ArgumentNullException(nameof(callbackQuery.Message));
             if (callbackQuery.Message is null)
                 return;
             var listCallback = PagedListCallbackDto.FromString(callbackQuery.Data ?? "");
@@ -283,9 +282,6 @@ namespace Interactive_Menu.TelegramBot
                 var completedCallback = new PagedListCallbackDto { Action = "show_completed", ToDoListId = listCallback.ToDoListId, Page = 0 };
                 controlButtons.Add(KeyValuePair.Create("☑️ Посмотреть выполненные", completedCallback.ToString()));
             }
-
-            var backCallback = new PagedListCallbackDto { Action = "show", ToDoListId = null, Page = 0 };
-            controlButtons.Add(KeyValuePair.Create("🔙 Назад к спискам", backCallback.ToString()));
 
             var finalKeyboard = BuildPagedButtons(controlButtons, listCallback);
 
