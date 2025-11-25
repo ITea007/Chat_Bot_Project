@@ -9,16 +9,10 @@ namespace Interactive_Menu.Core.Entities
     internal class ToDoList
     {
         public Guid Id { get; init; }
-        public string Name { get; set; }
-        public ToDoUser User { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public Guid UserId { get; set; }
+        public ToDoUser User { get; set; } = null!;
         public DateTime CreatedAt { get; init; }
 
-        public ToDoList(ToDoUser user, string name)
-        {
-            Id = Guid.NewGuid();
-            User = user;
-            Name = name;
-            CreatedAt = DateTime.UtcNow;
-        }
     }
 }
