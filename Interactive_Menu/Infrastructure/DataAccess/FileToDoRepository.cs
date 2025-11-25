@@ -12,11 +12,6 @@ using Telegram.Bot.Types;
 
 namespace Interactive_Menu.Infrastructure.DataAccess
 {
-    //Реализовать хранение ToDoItem в отдельных json файлах.
-    //Имя файла: "{ToDoItem.Id}.json"
-    //Имя базовой папки нужно получать через конструктор. Папку нужно создавать если её нет.
-    //Для хранения данных в файлах использовать json формат. Для этого нужно использовать
-    //библиотеку System.Text.Json и методы JsonSerializer.Serialize JsonSerializer.Deserialize.
 
     internal class FileToDoRepository : IToDoRepository
     {
@@ -88,7 +83,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
             {
                 List<UserRecord>? records;
 
-                // Чтение index.json - FileStream автоматически закроется
+                // Чтение index.json
                 await using (var readStream = File.OpenRead(_indexFilePath))
                 {
                     records = await JsonSerializer.DeserializeAsync<List<UserRecord>>(readStream, cancellationToken: ct);
@@ -103,7 +98,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
                     records.Add(new UserRecord(item.User.UserId, item.Id));
                 }
 
-                // Запись index.json - FileStream автоматически закроется
+                // Запись index.json
                 await using (var writeStream = File.Create(_indexFilePath))
                 {
                     await JsonSerializer.SerializeAsync(writeStream, records, cancellationToken: ct);
@@ -120,7 +115,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
             {
                 List<UserRecord>? records;
 
-                // Чтение index.json - FileStream автоматически закроется
+                // Чтение index.json
                 await using (var readStream = File.OpenRead(_indexFilePath))
                 {
                     records = await JsonSerializer.DeserializeAsync<List<UserRecord>>(readStream, cancellationToken: ct);
@@ -133,7 +128,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
                     {
                         records.Remove(userRecord);
 
-                        // Запись обновленного index.json - FileStream автоматически закроется
+                        // Запись обновленного index.json - FileStream автоматически закроется(using)
                         await using (var writeStream = File.Create(_indexFilePath))
                         {
                             await JsonSerializer.SerializeAsync(writeStream, records, cancellationToken: ct);
@@ -197,7 +192,7 @@ namespace Interactive_Menu.Infrastructure.DataAccess
                 var files = Directory.GetFiles(directory, "*.json");
                 foreach (var file in files)
                 {
-                    // Более надежная проверка по имени файла
+                    
                     var fileName = Path.GetFileNameWithoutExtension(file);
                     if (Guid.TryParse(fileName, out Guid fileTaskId) && fileTaskId == id)
                     {

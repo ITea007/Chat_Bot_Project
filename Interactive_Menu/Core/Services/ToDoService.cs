@@ -92,5 +92,10 @@ namespace Interactive_Menu.Core.Services
             var allItems = await _toDoRepository.GetActiveByUserId(userId, ct);
             return allItems.Where(item => item.List?.Id == listId).ToList();
         }
+
+        public async Task<ToDoItem?> Get(Guid toDoItemId, CancellationToken ct)
+        {
+            return await _toDoRepository.Get(toDoItemId, ct);
+        }
     }
 }

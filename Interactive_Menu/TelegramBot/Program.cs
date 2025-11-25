@@ -11,6 +11,7 @@ using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Interactive_Menu.TelegramBot.Helpers;
 
 namespace Interactive_Menu.TelegramBot
 {
@@ -46,13 +47,11 @@ namespace Interactive_Menu.TelegramBot
             scenarios.Add(new AddTaskScenario(userService, toDoService, toDoListService, helper));
             scenarios.Add(new AddListScenario(userService, toDoListService));
             scenarios.Add(new DeleteListScenario(userService, toDoListService, toDoService));
+            scenarios.Add(new DeleteTaskScenario(toDoService));
 
             var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService, scenarios, scenarioContextRepository, toDoListService, helper);
             try
             {
-                //await botClient.SetMyCommands(handler.CommandsBeforeRegistration, cancellationToken:ct);
-                //await botClient.SendMessage(update.Message.Chat, "Вы не зарегистрированы. Нажмите /start для начала.", replyMarkup: _helper._keyboardBeforeRegistration, cancellationToken: ct);
-
                 handler.OnHandleEventStarted += (message, telegramId) => { Console.WriteLine($"Началась обработка сообщения '{message}' от '{telegramId}'"); };
                 handler.OnHandleEventCompleted += (message, telegramId) => { Console.WriteLine($"Закончилась обработка сообщения '{message}' от '{telegramId}'"); };
                 botClient.StartReceiving(handler, receiverOptions, cancellationToken: ct);

@@ -2,6 +2,7 @@
 using Interactive_Menu.Core.Exceptions;
 using Interactive_Menu.Core.Services;
 using Interactive_Menu.TelegramBot.Dto;
+using Interactive_Menu.TelegramBot.Helpers;
 using Microsoft.VisualBasic;
 using System;
 using System.Collections.Generic;
