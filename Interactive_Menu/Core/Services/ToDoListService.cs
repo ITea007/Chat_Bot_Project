@@ -30,7 +30,15 @@ namespace Interactive_Menu.Core.Services
             if (await _toDoListRepository.ExistsByName(user.UserId, name, ct))
                 throw new InvalidOperationException("Список с таким именем уже существует");
 
-            var list = new ToDoList(user, name);
+            var list = new ToDoList
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.UserId,
+                User = user,
+                Name = name,
+                CreatedAt = DateTime.UtcNow
+            };
+
             await _toDoListRepository.Add(list, ct);
             return list;
         }

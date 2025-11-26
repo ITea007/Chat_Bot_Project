@@ -70,7 +70,19 @@ namespace Interactive_Menu.Core.Services
             if (name.Length > TaskLengthLimit) throw new TaskLengthLimitException(name.Length, TaskLengthLimit);
             if (await _toDoRepository.ExistsByName(user.UserId, name, ct)) throw new DuplicateTaskException(name);
 
-            var task = new ToDoItem(user, name, deadline, list);
+            var task = new ToDoItem
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.UserId,
+                User = user,
+                Name = name,
+                CreatedAt = DateTime.UtcNow,
+                State = ToDoItemState.Active,
+                Deadline = deadline,
+                ListId = list?.Id,
+                List = list
+            };
+
             await _toDoRepository.Add(task, ct);
             return task;
         }
