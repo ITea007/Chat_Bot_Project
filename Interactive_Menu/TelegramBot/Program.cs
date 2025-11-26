@@ -30,19 +30,37 @@ namespace Interactive_Menu.TelegramBot
                 await Console.Out.WriteLineAsync("Bot token not found. Please set the TELEGRAM_BOT_TOKEN environment variable.");
                 return;
             }
+            // Get connection string from environment variable
+            string? connectionString = Environment.GetEnvironmentVariable("TODO_DB_CONNECTION_STRING", EnvironmentVariableTarget.User);
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                await Console.Out.WriteLineAsync("Database connection string not found. Please set the TODO_DB_CONNECTION_STRING environment variable.");
+                return;
+            }
+
             var receiverOptions = new ReceiverOptions{ AllowedUpdates = Array.Empty<UpdateType>() }; // Получать все типы обновлений 
             var cts = new CancellationTokenSource();
             var ct = cts.Token;
             var botClient = new TelegramBotClient(token);
-            var userRepository = new FileUserRepository("userrep");
+
+            // Create data context factory
+            var dataContextFactory = new DataContextFactory(connectionString); 
+            // Create repositories with SQL implementation
+            var userRepository = new SqlUserRepository(dataContextFactory);
+            var toDoRepository = new SqlToDoRepository(dataContextFactory);
+            var toDoListRepository = new SqlToDoListRepository(dataContextFactory);
+
+            //var userRepository = new FileUserRepository("userrep");
+            //var toDoRepository = new FileToDoRepository("filerep");
+            //var toDoListRepository = new FileToDoListRepository("todolistrep");
+
             var userService = new UserService(userRepository);
-            var toDoRepository = new FileToDoRepository("filerep");
             var toDoService = new ToDoService(toDoRepository);
-            var toDoListRepository = new FileToDoListRepository("todolistrep");
             var toDoListService = new ToDoListService(toDoListRepository);
             var toDoReportService = new ToDoReportService(toDoService);
             var scenarioContextRepository = new InMemoryScenarioContextRepository();
             var helper = new Helper();
+
             var scenarios = new List<IScenario>();
             scenarios.Add(new AddTaskScenario(userService, toDoService, toDoListService, helper));
             scenarios.Add(new AddListScenario(userService, toDoListService));
@@ -102,6 +120,4 @@ namespace Interactive_Menu.TelegramBot
             }
         }
     }
-
-
 }

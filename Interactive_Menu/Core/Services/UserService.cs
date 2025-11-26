@@ -25,7 +25,13 @@ namespace Interactive_Menu.Core.Services
 
         public async Task<ToDoUser> RegisterUser(long telegramUserId, string telegramUserName, CancellationToken ct)
         {
-            var user = new ToDoUser(telegramUserId, telegramUserName);
+            var user = new ToDoUser
+            {
+                UserId = Guid.NewGuid(),
+                TelegramUserId = telegramUserId,
+                TelegramUserName = telegramUserName,
+                RegisteredAt = DateTime.UtcNow
+            };
             await _userRepository.Add(user, ct);
             return user;  
         }
