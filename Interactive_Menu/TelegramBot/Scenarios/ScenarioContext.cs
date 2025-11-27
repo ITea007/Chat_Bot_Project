@@ -13,11 +13,13 @@ namespace Interactive_Menu.TelegramBot.Scenarios
         public ScenarioType CurrentScenario { get; init; }
         public string? CurrentStep { get; set; } //Текущий шаг сценария
         public Dictionary<string, object> Data { get; set; } //Дополнительная инфрмация, необходимая для работы сценария
+        public DateTime CreatedAt { get; } //Время создания контекста
         public ScenarioContext(ScenarioType scenario, long userId)
         {
             CurrentScenario = scenario;
             Data = new Dictionary<string, object>();
             UserId = userId;
+            CreatedAt = DateTime.UtcNow;
         }
     }
 }

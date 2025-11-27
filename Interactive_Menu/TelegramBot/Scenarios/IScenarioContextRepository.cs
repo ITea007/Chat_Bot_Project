@@ -15,6 +15,8 @@ namespace Interactive_Menu.TelegramBot.Scenarios
         Task SetContext(long userId, ScenarioContext context, CancellationToken ct);
         //Сбросить (очистить) контекст пользователя
         Task ResetContext(long userId, CancellationToken ct);
+        //Получить все контексты
+        Task<IReadOnlyList<ScenarioContext>> GetContexts(CancellationToken ct);
     }
 
 }

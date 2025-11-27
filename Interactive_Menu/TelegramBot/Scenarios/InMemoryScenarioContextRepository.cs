@@ -11,8 +11,6 @@ namespace Interactive_Menu.TelegramBot.Scenarios
 
     internal class InMemoryScenarioContextRepository : IScenarioContextRepository
     {
-        //В качестве хранилища использовать Dictionary<long, ScenarioContext>
-
         private readonly ConcurrentDictionary<long, ScenarioContext> _scenarioContextDictionary = new ConcurrentDictionary<long, ScenarioContext>();
 
         //Получить контекст пользователя
@@ -21,6 +19,14 @@ namespace Interactive_Menu.TelegramBot.Scenarios
             ScenarioContext? context = _scenarioContextDictionary.GetValueOrDefault(userId);
             return Task.FromResult(context);
         }
+
+        //Получить все контексты
+        public Task<IReadOnlyList<ScenarioContext>> GetContexts(CancellationToken ct)
+        {
+            var contexts = _scenarioContextDictionary.Values.ToList().AsReadOnly();
+            return Task.FromResult<IReadOnlyList<ScenarioContext>>(contexts);
+        }
+
         //Сбросить (очистить) контекст пользователя
         public Task ResetContext(long userId, CancellationToken ct)
         {
