@@ -1,6 +1,8 @@
 ﻿using Interactive_Menu;
+using Interactive_Menu.BackgroundTasks;
 using Interactive_Menu.Core.Services;
 using Interactive_Menu.Infrastructure.DataAccess;
+using Interactive_Menu.TelegramBot.Helpers;
 using Interactive_Menu.TelegramBot.Scenarios;
 using System;
 using System.ComponentModel;
@@ -11,7 +13,6 @@ using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
-using Interactive_Menu.TelegramBot.Helpers;
 
 namespace Interactive_Menu.TelegramBot
 {
@@ -67,6 +68,21 @@ namespace Interactive_Menu.TelegramBot
             scenarios.Add(new DeleteListScenario(userService, toDoListService, toDoService));
             scenarios.Add(new DeleteTaskScenario(toDoService));
 
+            // Создание и настройка фоновых задач
+            var backgroundTaskRunner = new BackgroundTaskRunner();
+
+            // Добавляем задачу сброса сценариев по таймауту (1 час)
+            var resetScenarioTask = new ResetScenarioBackgroundTask(
+                TimeSpan.FromHours(1),
+                scenarioContextRepository,
+                botClient,
+                helper);
+
+            backgroundTaskRunner.AddTask(resetScenarioTask);
+
+            // Запускаем фоновые задачи
+            backgroundTaskRunner.StartTasks(ct);
+
             var handler = new UpdateHandler(botClient, userService, toDoService, toDoReportService, scenarios, scenarioContextRepository, toDoListService, helper);
             try
             {
@@ -79,6 +95,8 @@ namespace Interactive_Menu.TelegramBot
                 await Task.WhenAll(waitForAKeyTask);
                 if (waitForAKeyTask.IsCompletedSuccessfully)
                 {
+                    // Останавливаем фоновые задачи перед выходом
+                    await backgroundTaskRunner.StopTasks(CancellationToken.None);
                     cts.Cancel();
                     Environment.Exit(0);
                 }
@@ -95,6 +113,9 @@ namespace Interactive_Menu.TelegramBot
             {
                 handler.OnHandleEventStarted -= (message, telegramId) => { Console.WriteLine($"Началась обработка сообщения '{message}' от '{telegramId}'"); };
                 handler.OnHandleEventCompleted -= (message, telegramId) => { Console.WriteLine($"Закончилась обработка сообщения '{message}' от '{telegramId}'"); };
+                // Останавливаем фоновые задачи в finally блоке
+                await backgroundTaskRunner.StopTasks(CancellationToken.None);
+                backgroundTaskRunner.Dispose();
             }
         }
 
