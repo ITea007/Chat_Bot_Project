@@ -1,4 +1,5 @@
 ﻿using Interactive_Menu.Core.DataAccess;
+using Interactive_Menu.Core.DataAccess.Models;
 using Interactive_Menu.Core.Entities;
 using LinqToDB;
 using System;
@@ -81,6 +82,24 @@ namespace Interactive_Menu.Infrastructure.DataAccess
                 .LoadWith(i => i.List)
                 .LoadWith(i => i.List!.User)
                 .Where(i => i.UserId == userId && i.State == (int)ToDoItemState.Active)
+                .ToListAsync(ct);
+
+            var entities = models.Select(model => ModelMapper.MapFromModel(model));
+            return entities.ToList().AsReadOnly();
+        }
+
+        public async Task<IReadOnlyList<ToDoItem>> GetActiveWithDeadline(Guid userId, DateTime from, DateTime to, CancellationToken ct)
+        {
+            using var dbContext = _factory.CreateDataContext();
+
+            var models = await dbContext.ToDoItems
+                .LoadWith(i => i.User)
+                .LoadWith(i => i.List)
+                .LoadWith(i => i.List!.User)
+                .Where(i => i.UserId == userId && 
+                        i.State == (int)ToDoItemState.Active && 
+                        i.Deadline >= from &&
+                        i.Deadline < to)
                 .ToListAsync(ct);
 
             var entities = models.Select(model => ModelMapper.MapFromModel(model));

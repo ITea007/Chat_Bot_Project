@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Interactive_Menu.Core.DataAccess
 {
-    internal interface IToDoRepository
+    public interface IToDoRepository
     {
         //Метод возвращает все задачи пользователя
         Task<IReadOnlyList<ToDoItem>> GetAllByUserId(Guid userId, CancellationToken ct);
@@ -23,6 +23,9 @@ namespace Interactive_Menu.Core.DataAccess
         Task<int> CountActive(Guid userId, CancellationToken ct);
         //Метод возвращает все задачи пользователя, которые удовлетворяют предикату.
         Task<IReadOnlyList<ToDoItem>> Find(Guid userId, Func<ToDoItem, bool> predicate, CancellationToken ct);
+        //Возвращает активные задачи, у которых Deadline >= from && Deadline<to
+        Task<IReadOnlyList<ToDoItem>> GetActiveWithDeadline(Guid userId, DateTime from, DateTime to, CancellationToken ct);
+
     }
 
 }

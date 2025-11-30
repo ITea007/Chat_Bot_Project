@@ -29,5 +29,10 @@ namespace Interactive_Menu.Infrastructure.DataAccess
             var user = _users.Where(i => i.TelegramUserId == telegramUserId).FirstOrDefault();
             return Task.FromResult(user);
         }
+
+        public Task<IReadOnlyList<ToDoUser>> GetUsers(CancellationToken ct)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

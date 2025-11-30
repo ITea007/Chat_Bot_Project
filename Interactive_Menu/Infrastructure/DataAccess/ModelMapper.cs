@@ -99,5 +99,38 @@ namespace Interactive_Menu.Infrastructure.DataAccess
                 CreatedAt = entity.CreatedAt
             };
         }
+
+        public static NotificationModel MapToModel(Notification entity)
+        {
+            ArgumentNullException.ThrowIfNull(entity);
+
+            return new NotificationModel
+            {
+                Id = entity.Id,
+                UserId = entity.UserId,
+                Type = entity.Type,
+                Text = entity.Text,
+                ScheduledAt = entity.ScheduledAt,
+                IsNotified = entity.IsNotified,
+                NotifiedAt = entity.NotifiedAt
+            };
+        }
+
+        public static Notification MapFromModel(NotificationModel model)
+        {
+            ArgumentNullException.ThrowIfNull(model);
+
+            return new Notification
+            {
+                Id = model.Id,
+                User = model.User != null ? MapFromModel(model.User) : throw new InvalidDataException("ToDoList must have User"),
+                UserId = model.UserId,
+                Type = model.Type,
+                Text = model.Text,
+                ScheduledAt = model.ScheduledAt,
+                IsNotified = model.IsNotified,
+                NotifiedAt = model.NotifiedAt
+            };
+        }
     }
 }

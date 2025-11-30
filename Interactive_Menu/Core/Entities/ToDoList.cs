@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Interactive_Menu.Core.Entities
 {
-    internal class ToDoList
+    public class ToDoList
     {
         public Guid Id { get; init; }
         public string Name { get; set; } = string.Empty;

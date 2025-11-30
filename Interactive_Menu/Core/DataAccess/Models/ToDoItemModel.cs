@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace Interactive_Menu.Core.DataAccess.Models
 {
     [Table("ToDoItem")]
-    internal class ToDoItemModel
+    public class ToDoItemModel
     {
         [PrimaryKey]
         [Column("Id")]
