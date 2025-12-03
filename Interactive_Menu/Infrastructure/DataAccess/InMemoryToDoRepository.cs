@@ -57,6 +57,11 @@ namespace Interactive_Menu.Infrastructure.DataAccess
             return Task.FromResult<IReadOnlyList<ToDoItem>>(list);
         }
 
+        public Task<IReadOnlyList<ToDoItem>> GetActiveWithDeadline(Guid userId, DateTime from, DateTime to, CancellationToken ct)
+        {
+            throw new NotImplementedException();
+        }
+
         public Task<IReadOnlyList<ToDoItem>> GetAllByUserId(Guid userId, CancellationToken ct)
         {
             var list = _tasks.Where(i => i.User.UserId == userId).ToList().AsReadOnly();

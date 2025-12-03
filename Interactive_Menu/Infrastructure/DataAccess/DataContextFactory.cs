@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Interactive_Menu.Infrastructure.DataAccess
 {
-    internal class DataContextFactory : IDataContextFactory<ToDoDataContext>
+    public class DataContextFactory : IDataContextFactory<ToDoDataContext>
     {
         private readonly string _connectionString;
 

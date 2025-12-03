@@ -2,6 +2,7 @@
 using Interactive_Menu.BackgroundTasks;
 using Interactive_Menu.Core.Services;
 using Interactive_Menu.Infrastructure.DataAccess;
+using Interactive_Menu.Infrastructure.Services;
 using Interactive_Menu.TelegramBot.Helpers;
 using Interactive_Menu.TelegramBot.Scenarios;
 using System;
@@ -60,6 +61,7 @@ namespace Interactive_Menu.TelegramBot
             var toDoListService = new ToDoListService(toDoListRepository);
             var toDoReportService = new ToDoReportService(toDoService);
             var scenarioContextRepository = new InMemoryScenarioContextRepository();
+            var notificationService = new NotificationService(dataContextFactory);
             var helper = new Helper();
 
             var scenarios = new List<IScenario>();
@@ -78,7 +80,15 @@ namespace Interactive_Menu.TelegramBot
                 botClient,
                 helper);
 
+            var todayBackgroundTask = new TodayBackgroundTask(notificationService, userRepository, toDoRepository);
+            var deadlineBackgroundTask = new DeadlineBackgroundTask(notificationService, userRepository, toDoRepository);
+            var notificationBackgroundTask = new NotificationBackgroundTask(notificationService, botClient);
+
             backgroundTaskRunner.AddTask(resetScenarioTask);
+            backgroundTaskRunner.AddTask(todayBackgroundTask);
+            backgroundTaskRunner.AddTask(deadlineBackgroundTask);
+            backgroundTaskRunner.AddTask(notificationBackgroundTask);
+
 
             // Запускаем фоновые задачи
             backgroundTaskRunner.StartTasks(ct);

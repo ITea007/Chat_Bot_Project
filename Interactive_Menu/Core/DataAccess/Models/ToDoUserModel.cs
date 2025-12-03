@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace Interactive_Menu.Core.DataAccess.Models
 {
     [Table("ToDoUser")]
-    internal class ToDoUserModel
+    public class ToDoUserModel
     {
         [PrimaryKey]
         [Column("UserId")]

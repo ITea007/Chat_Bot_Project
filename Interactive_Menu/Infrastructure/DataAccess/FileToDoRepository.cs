@@ -278,5 +278,10 @@ namespace Interactive_Menu.Infrastructure.DataAccess
                 await JsonSerializer.SerializeAsync(stream, item, cancellationToken: ct);
             }
         }
+
+        public Task<IReadOnlyList<ToDoItem>> GetActiveWithDeadline(Guid userId, DateTime from, DateTime to, CancellationToken ct)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

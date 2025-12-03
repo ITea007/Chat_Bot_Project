@@ -57,5 +57,10 @@ namespace Interactive_Menu.Infrastructure.DataAccess
             }
             return null;
         }
+
+        public Task<IReadOnlyList<ToDoUser>> GetUsers(CancellationToken ct)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

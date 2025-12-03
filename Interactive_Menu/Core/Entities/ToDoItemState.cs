@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Interactive_Menu.Core.Entities
 {
-    internal enum ToDoItemState
+    public enum ToDoItemState
     {
         Active,
         Completed

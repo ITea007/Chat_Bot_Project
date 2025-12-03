@@ -9,7 +9,7 @@ namespace Interactive_Menu.Core.Entities
     /// <summary>
     ///  Класс пользователя ToDo
     /// </summary>
-     internal class ToDoUser
+     public class ToDoUser
     {
         public long TelegramUserId { get; set; }
         public Guid UserId { get; set; }
